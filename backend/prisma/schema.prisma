@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  image       String?
+  role        Role     @default(RESIDENT)
+  credibility Float    @default(1.0)
+  createdAt   DateTime @default(now())
+  reports     Report[]
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  userId      String
+  title       String
+  description String
+  severity    Severity     @default(LOW)
+  status      Status       @default(PENDING)
+  aiStatus    String?      // optional
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime     @default(now())
+  multimedia  Multimedia[]
+  user        User         @relation(fields: [userId], references: [id])
+}
+
+model Multimedia {
+  id        String    @id @default(cuid())
+  reportId  String
+  type      MediaType
+  url       String
+  analysis  Json?
+  createdAt DateTime  @default(now())
+  report    Report    @relation(fields: [reportId], references: [id])
+}
+
+enum MediaType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+}
+
+enum Severity {
+  LOW
+  MODERATE
+  HIGH
+}
+
+enum Status {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum Role {
+  RESIDENT
+  BARANGAY_OFFICIAL
+  ADMIN
+}

@@ -13,5 +13,5 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ]
+, "backend/prisma.config.ts", "backend/prisma.config.js"  ]
 }
