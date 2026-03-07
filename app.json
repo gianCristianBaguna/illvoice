@@ -8,6 +8,9 @@
     "scheme": "illvoice",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "config": {
+        "googleMapsApiKey": "AIzaSyASTc0FN3JBdR8cmUb51CbuwQlNgl1Y5m0"
+      },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.karinobrutal.Illvoice",
@@ -24,7 +27,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.karinobrutal.Illvoice"
+      "package": "com.karinobrutal.Illvoice",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyASTc0FN3JBdR8cmUb51CbuwQlNgl1Y5m0"
+        }
+      }
     },
     "web": {
       "output": "static",

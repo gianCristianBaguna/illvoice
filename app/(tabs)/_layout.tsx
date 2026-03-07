@@ -1,36 +1,52 @@
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { router } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View, StyleSheet } from 'react-native';
 
 export default function DrawerLayout() {
   return (
     <Drawer
       drawerContent={(props) => (
         <View style={{ flex: 1 }}>
-          {/* Default items */}
+          {/* Drawer Scrollable Items */}
           <DrawerContentScrollView {...props}>
             <DrawerItemList {...props} />
           </DrawerContentScrollView>
 
-          {/* SIGN OUT */}
+          {/* Sign Out at bottom */}
           <Pressable
             onPress={handleSignOut}
-            style={{ padding: 16, borderTopWidth: 1 }}
+            style={styles.signOutBtn}
           >
-            <Text style={{ color: 'red', fontWeight: '600' }}>
-              Sign Out na yarn
-            </Text>
+            <Text style={styles.signOutText}>Sign Out</Text>
           </Pressable>
         </View>
       )}
     >
-      <Drawer.Screen name="index" options={{ title: 'Home' }} />
-      <Drawer.Screen name="explore" options={{ title: 'Explore' }} />
+      {/* Screens */}
     </Drawer>
   );
 }
 
 function handleSignOut() {
-  router.replace('/(auth)/login');
+  router.replace("/(auth)/login");
 }
+
+// Styles
+const styles = StyleSheet.create({
+  drawerLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000000",
+  },
+  signOutBtn: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#1e293b",
+  },
+  signOutText: {
+    color: "red",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+});

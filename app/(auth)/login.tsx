@@ -43,7 +43,7 @@ export default function LoginScreen() {
       if (isSuccessResponse(response)) {
         const { idToken } = response.data; // This is what your backend needs!
 
-        const BACKEND_URL = "http://192.168.1.18:4000";
+        const BACKEND_URL = "http://10.160.107.203:4000";
         console.log("Attempting to connect to:", BACKEND_URL);
 
         try {
@@ -58,7 +58,7 @@ export default function LoginScreen() {
           if (backendResponse.ok) {
             console.log("Authentication successful:", result.user);
             setState({ userInfo: response.data, isLoading: false });
-            router.push('/(tabs)');
+            router.push('/(tabs)/Dashboard');
           } else {
             console.error("Backend Auth Failed:", result.error);
             alert(`Auth Error: ${result.error}`);

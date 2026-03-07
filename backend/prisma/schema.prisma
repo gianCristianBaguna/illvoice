@@ -24,11 +24,12 @@ model Report {
   description String
   severity    Severity     @default(LOW)
   status      Status       @default(PENDING)
-  aiStatus    String?      // optional
   latitude    Float?
   longitude   Float?
   createdAt   DateTime     @default(now())
+  barangayId  String?
   multimedia  Multimedia[]
+  barangay    Barangay?    @relation(fields: [barangayId], references: [id])
   user        User         @relation(fields: [userId], references: [id])
 }
 
@@ -40,6 +41,14 @@ model Multimedia {
   analysis  Json?
   createdAt DateTime  @default(now())
   report    Report    @relation(fields: [reportId], references: [id])
+}
+
+model Barangay {
+  id        String   @id @default(cuid())
+  name      String
+  latitude  Float
+  longitude Float
+  reports   Report[]
 }
 
 enum MediaType {
