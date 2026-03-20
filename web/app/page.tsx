@@ -13,15 +13,25 @@ export default function Dashboard() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // load real complaints from backend API
+  // Temporarily bypass login
+  const isAuthenticated = true;
+
   useEffect(() => {
-    fetchComplaints()
-      .then(setComplaints)
-      .catch((err) => {
-        console.error('Error fetching reports:', err);
-      });
+    fetchDashboardData();
   }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      const data = await fetchComplaints();
+      setComplaints(data);
+    } catch (err) {
+      console.error('Error fetching reports:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleComplaintClick = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -35,6 +45,20 @@ export default function Dashboard() {
     setIsModalOpen(false);
   };
 
+  const handleLogout = () => {
+    setComplaints([]);
+    // Optional: If you want to restore login later
+    // setIsAuthenticated(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-gray-600">Loading dashboard...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -44,36 +68,31 @@ export default function Dashboard() {
             <div>
               <h1 className="text-3xl font-bold text-foreground">ILLVOICE Administrator</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Track and resolve complaints from your mobile application
+                Track and resolve complaints from your community
               </p>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => {
-                fetchComplaints()
-                  .then(setComplaints)
-                  .catch((err) => console.error('Error refreshing:', err));
-              }}
-            >
-              Refresh Data
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={fetchDashboardData}>
+                🔄 Refresh Data
+              </Button>
+              <Button variant="destructive" onClick={handleLogout}>
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {/* Stats */}
         <section className="mb-8">
           <DashboardStats complaints={complaints} />
         </section>
 
-        {/* Analytics Charts */}
         <section className="mb-8">
           <AnalyticsCharts complaints={complaints} />
         </section>
 
-        {/* Complaints Table */}
         <section>
           <ComplaintsTable
             complaints={complaints}
@@ -83,7 +102,6 @@ export default function Dashboard() {
         </section>
       </main>
 
-      {/* Resolution Modal */}
       <ResolutionModal
         complaint={selectedComplaint}
         isOpen={isModalOpen}

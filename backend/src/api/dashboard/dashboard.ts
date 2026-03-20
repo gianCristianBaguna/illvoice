@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { prisma } from "../../prisma";
 import { analyzeSeverity } from "../../services/severityAI/index";
+import { Severity, MediaType } from "@prisma/client";
+
 
 const router = Router();
 
@@ -44,21 +46,35 @@ router.post("/reports/by-email", async (req, res) => {
       mediaUrl,
     });
 
-    // 4️⃣ Create report
+    const data: any = {
+      userId: user.id,
+      barangayId: nearestBarangay?.id,
+      title,
+      description,
+      latitude,
+      longitude,
+      severity: aiSeverity as Severity,
+    };
+
+    // Add multimedia only if it exists
+    if (mediaType && mediaType !== "TEXT" && mediaUrl && mediaUrl !== "N/A") {
+      data.multimedia = {
+        create: [
+          {
+            type: mediaType as MediaType,
+            url: mediaUrl,
+            analysis: null,
+          },
+        ],
+      };
+    }
+
     const report = await prisma.report.create({
-      data: {
-        userId: user.id,
-        barangayId: nearestBarangay?.id,
-        title,
-        description,
-        latitude,
-        longitude,
-        severity: aiSeverity as any,
-      },
+      data,
       include: {
         user: true,
         barangay: true,
-        multimedia: true, // optional, if you want to return media too
+        multimedia: true,
       },
     });
 
@@ -68,6 +84,40 @@ router.post("/reports/by-email", async (req, res) => {
     res.status(500).json({ error: "Failed to create report" });
   }
 });
+
+// ---------------- GET REPORTS BY EMAIL ----------------
+router.get("/reports/by-email", async (req, res) => {
+  try {
+    const email = req.headers["x-user-email"] as string;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email header (X-User-Email) is required" });
+    }
+
+    // Find user by email
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Fetch reports for this user
+    const reports = await prisma.report.findMany({
+      where: { userId: user.id },
+      include: {
+        user: true,
+        barangay: true,
+        multimedia: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.json(reports);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch reports" });
+  }
+});
+
 
 // ---------------- GET ALL REPORTS ----------------
 router.get("/reports", async (req, res) => {

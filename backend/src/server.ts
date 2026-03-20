@@ -1,9 +1,11 @@
 import cors from "cors";
 import "dotenv/config";
 import express from "express";
+import adminRoutes from "./api/admin/google-signin";
 import authRoutes from "./api/auth/google";
 import dashboardRoutes from "./api/dashboard/dashboard";
 import reportRoutes from "./api/reports/index";
+import userRoutes from "./api/user/profile";
 import { prisma } from "./prisma";
 
 import dotenv from 'dotenv';
@@ -13,7 +15,12 @@ console.log("Backend Google Client ID:", process.env.GOOGLE_CLIENT_ID);
 console.log("OpenAI API Key configured:", !!process.env.OPENAI_API_KEY);
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // connect to the database once at startup so we can fail fast
@@ -27,12 +34,14 @@ prisma
 
 app.use("/api/auth", authRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/dashboard", dashboardRoutes);
 
 const PORT = Number(process.env.PORT)|| 4000;
 
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://10.160.107.203:${PORT}`);
+  console.log(`Server running on http://192.168.50.203:${PORT}`);
 });
 
 // Add this right before your other routes

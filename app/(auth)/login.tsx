@@ -1,4 +1,5 @@
 
+import { useAuth } from '@/app/services/auth-context';
 import { GoogleSignin, isSuccessResponse, User } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -26,6 +27,7 @@ export default function LoginScreen() {
     userInfo: null,
     isLoading: false,
   });
+  const { setUserEmail } = useAuth();
 
   const handleGoogleSignin = async () => {
     // Prevent multiple concurrent sign-in attempts
@@ -42,8 +44,10 @@ export default function LoginScreen() {
 
       if (isSuccessResponse(response)) {
         const { idToken } = response.data; // This is what your backend needs!
+        const userEmail = response.data.user.email;
+        const userName = response.data.user.name;
 
-        const BACKEND_URL = "http://10.160.107.203:4000";
+        const BACKEND_URL = "http://192.168.50.203:4000"; // <-- Update this to your backend's local IP and port
         console.log("Attempting to connect to:", BACKEND_URL);
 
         try {
@@ -57,6 +61,7 @@ export default function LoginScreen() {
 
           if (backendResponse.ok) {
             console.log("Authentication successful:", result.user);
+            setUserEmail(userEmail);
             setState({ userInfo: response.data, isLoading: false });
             router.push('/(tabs)/Dashboard');
           } else {

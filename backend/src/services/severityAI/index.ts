@@ -116,7 +116,7 @@ Description: ${description}
     if (result.includes("MODERATE") || result.includes("moderate")) return "MODERATE";
     if (result.includes("LOW") || result.includes("low")) return "LOW";
 
-    return "HIGH";
+    return "LOW";
   } catch (err: any) {
     console.log("AI severity error:", err.message);
 

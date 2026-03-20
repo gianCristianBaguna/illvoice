@@ -3,6 +3,12 @@ export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'PENDING';
 // 'PENDING' is the value stored in the database; we usually map it to OPEN on the
 // client but the union includes it to avoid type errors if it leaks through.
 
+export interface MediaFile {
+  type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'TEXT';
+  url: string;
+  analysis?: Record<string, any>;
+}
+
 export interface Complaint {
   id: string;
   title: string;
@@ -16,6 +22,7 @@ export interface Complaint {
   category: string;
   userEmail: string;
   userName: string;
+  multimedia?: MediaFile[];
 }
 
 const teamMembers = ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Williams', 'Alex Brown'];

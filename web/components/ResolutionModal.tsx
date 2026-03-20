@@ -2,20 +2,20 @@
 
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { analyzeComplaintWithAI, updateComplaint } from '@/lib/api';
@@ -114,6 +114,57 @@ export function ResolutionModal({ complaint, isOpen, onClose, onSave }: Resoluti
                   {new Date(formData.reportedDate).toLocaleDateString()}
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Multimedia/Images Section */}
+          <div className="border-t pt-4">
+            <Label className="text-sm font-semibold mb-3 block">Multimedia Attachments</Label>
+            <div className="grid grid-cols-2 gap-4">
+              {complaint.multimedia && complaint.multimedia.length > 0 ? (
+                complaint.multimedia.map((media, idx) => (
+                  <div key={idx} className="border rounded-lg p-2 bg-muted">
+                    {media.type === 'IMAGE' && (
+                      <div className="space-y-2">
+                        <img 
+                          src={media.url} 
+                          alt={`Report attachment ${idx + 1}`}
+                          className="w-full h-40 object-cover rounded"
+                        />
+                        <p className="text-xs text-muted-foreground text-center">Image</p>
+                      </div>
+                    )}
+                    {media.type === 'VIDEO' && (
+                      <div className="space-y-2">
+                        <video 
+                          src={media.url} 
+                          controls
+                          className="w-full h-40 bg-black rounded"
+                        />
+                        <p className="text-xs text-muted-foreground text-center">Video</p>
+                      </div>
+                    )}
+                    {media.type === 'AUDIO' && (
+                      <div className="space-y-2">
+                        <audio 
+                          src={media.url} 
+                          controls
+                          className="w-full"
+                        />
+                        <p className="text-xs text-muted-foreground text-center">Audio Recording</p>
+                      </div>
+                    )}
+                    {media.type === 'TEXT' && (
+                      <div className="space-y-2 p-2 bg-white rounded">
+                        <p className="text-xs text-gray-700 break-all">{media.url}</p>
+                        <p className="text-xs text-muted-foreground text-center">Text Note</p>
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground col-span-2">No multimedia attachments</p>
+              )}
             </div>
           </div>
 

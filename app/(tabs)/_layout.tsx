@@ -1,9 +1,17 @@
+import { useAuth } from '@/app/services/auth-context';
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { router } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
-import { Pressable, Text, View, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export default function DrawerLayout() {
+  const { signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    signOut();
+    router.replace("/(auth)/login");
+  };
+
   return (
     <Drawer
       drawerContent={(props) => (

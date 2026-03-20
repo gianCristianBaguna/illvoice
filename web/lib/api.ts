@@ -2,7 +2,7 @@ import { Complaint } from './mockData';
 
 // base url for the backend, override with NEXT_PUBLIC_BACKEND_URL in env
 export const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://10.160.107.203:4000';
+  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://192.168.50.203:4000';
 
 function mapReportToComplaint(r: any): Complaint {
   // convert the response shape from backend to UI shape
@@ -21,6 +21,11 @@ function mapReportToComplaint(r: any): Complaint {
     category: r.category || '',
     userEmail: r.user?.email || '',
     userName: r.user?.name || '',
+    multimedia: r.multimedia?.map((m: any) => ({
+      type: m.type,
+      url: m.url,
+      analysis: m.analysis,
+    })) || [],
   };
 }
 
