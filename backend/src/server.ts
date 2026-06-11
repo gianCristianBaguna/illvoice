@@ -2,7 +2,8 @@ import cors from "cors";
 import "dotenv/config";
 import express from "express";
 import adminRoutes from "./api/admin/google-signin";
-import authRoutes from "./api/auth/google";
+import googleAuthRoutes from "./api/auth/google";
+import usernamePasswordAuthRoutes from "./api/auth/username-password";
 import dashboardRoutes from "./api/dashboard/dashboard";
 import reportRoutes from "./api/reports/index";
 import userRoutes from "./api/user/profile";
@@ -17,7 +18,7 @@ console.log("OpenAI API Key configured:", !!process.env.OPENAI_API_KEY);
 const app = express();
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000", "http://192.168.254.111:4000", "http://192.168.254.111:8081"],
     credentials: true,
   })
 );
@@ -32,7 +33,8 @@ prisma
     process.exit(1);
   });
 
-app.use("/api/auth", authRoutes);
+app.use("/api/auth/google", googleAuthRoutes);
+app.use("/api/auth", usernamePasswordAuthRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
@@ -41,7 +43,7 @@ app.use("/dashboard", dashboardRoutes);
 const PORT = Number(process.env.PORT)|| 4000;
 
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://192.168.50.203:${PORT}`);
+  console.log(`Server running on http://192.168.254.111:${PORT}`);
 });
 
 // Add this right before your other routes

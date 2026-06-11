@@ -1,15 +1,15 @@
-import { useAuth } from '@/app/services/auth-context';
+import { useAuth } from '@/contexts/auth-context';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 interface Report {
@@ -30,7 +30,7 @@ interface HistoryStats {
   avgResolutionTime: string;
 }
 
-const BACKEND_URL = 'http://192.168.50.203:4000';
+const BACKEND_URL = 'http://192.168.254.111:4000';
 
 export default function HistoryScreen() {
   const [reports, setReports] = useState<Report[]>([]);
@@ -390,7 +390,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusIconContainer: {
-    fontSize: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statusIcon: {
     fontSize: 20,

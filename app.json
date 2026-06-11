@@ -9,8 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "config": {
-        "googleMapsApiKey": "AIzaSyASTc0FN3JBdR8cmUb51CbuwQlNgl1Y5m0"
-      },
+      "googleMapsApiKey": "AIzaSyASTc0FN3JBdR8cmUb51CbuwQlNgl1Y5m0"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.karinobrutal.Illvoice",
@@ -57,7 +57,7 @@
             "backgroundColor": "#000000"
           }
         }
-      ], 
+      ],
       [
         "expo-image-picker",
         {
@@ -72,7 +72,8 @@
           "apiKey": "AIzaSyASTc0FN3JBdR8cmUb51CbuwQlNgl1Y5m0"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,

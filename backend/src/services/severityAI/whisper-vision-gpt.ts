@@ -1,4 +1,9 @@
 import OpenAI from "openai";
+import fetch from "node-fetch";
+import fs from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { spawn } from "child_process";
 
 let openai: OpenAI | null = null;
 
@@ -12,6 +17,63 @@ function getOpenAIClient() {
 }
 
 /**
+ * Extract a frame from a video URL and return as base64 image (data URI)
+ */
+export async function extractVideoFrame(videoUrl: string): Promise<string | null> {
+  try {
+    const response = await fetch(videoUrl);
+    if (!response.ok) {
+      console.error("Failed to fetch video:", response.status);
+      return null;
+    }
+
+    const videoBuffer = await response.arrayBuffer();
+    const tmpVideoPath = join(tmpdir(), `video_${Date.now()}.mp4`);
+    const tmpFramePath = join(tmpdir(), `frame_${Date.now()}.jpg`);
+
+    fs.writeFileSync(tmpVideoPath, Buffer.from(videoBuffer));
+
+    return new Promise((resolve) => {
+      const ffmpegPath = process.env.FFMPEG_PATH || "ffmpeg";
+      const ffmpeg = spawn(ffmpegPath, [
+        "-i", tmpVideoPath,
+        "-ss", "00:00:01",
+        "-vframes", "1",
+        "-q:v", "2",
+        tmpFramePath
+      ]);
+
+      ffmpeg.on("close", (code: number) => {
+        try {
+          fs.unlinkSync(tmpVideoPath);
+          if (code === 0 && fs.existsSync(tmpFramePath)) {
+            const frameBuffer = fs.readFileSync(tmpFramePath);
+            const base64 = `data:image/jpeg;base64,${frameBuffer.toString("base64")}`;
+            fs.unlinkSync(tmpFramePath);
+            resolve(base64);
+          } else {
+            if (fs.existsSync(tmpFramePath)) fs.unlinkSync(tmpFramePath);
+            resolve(null);
+          }
+        } catch (err) {
+          console.error("Frame extraction error:", err);
+          resolve(null);
+        }
+      });
+
+      ffmpeg.on("error", (err: any) => {
+        console.error("FFmpeg error:", err.message);
+        try { fs.unlinkSync(tmpVideoPath); } catch {}
+        resolve(null);
+      });
+    });
+  } catch (err: any) {
+    console.error("Video frame extraction error:", err.message);
+    return null;
+  }
+}
+
+/**
  * Transcribe audio to text using Whisper
  */
 export async function transcribeAudio(audioUrl: string): Promise<string> {
@@ -22,20 +84,91 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
   }
 
   try {
-    // Download audio file
-    const audioBuffer = await fetch(audioUrl).then(res => res.arrayBuffer());
-    const audioFile = new File([audioBuffer], "audio.wav", { type: "audio/wav" });
+    const response = await fetch(audioUrl);
+    if (!response.ok) {
+      console.error("Failed to fetch audio:", response.status);
+      return "";
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    const fileExtension = audioUrl.includes(".mp3") || audioUrl.includes(".mpeg") ? "mp3" : "wav";
+    const tmpAudioPath = join(tmpdir(), `audio_${Date.now()}.${fileExtension}`);
+    fs.writeFileSync(tmpAudioPath, Buffer.from(audioBuffer));
 
     const transcript = await client.audio.transcriptions.create({
       model: "whisper-1",
-      file: audioFile,
+      file: fs.createReadStream(tmpAudioPath) as any,
     });
 
+    fs.unlinkSync(tmpAudioPath);
     console.log("✅ Audio transcribed:", transcript.text.substring(0, 100));
     return transcript.text;
   } catch (err: any) {
     console.error("❌ Whisper transcription error:", err.message);
     return "";
+  }
+}
+
+/**
+ * Analyze video by extracting a frame and using vision model
+ */
+export async function analyzeVideoWithVision(videoUrl: string): Promise<{
+  description: string;
+  hazards: string[];
+  severity_indicator: string;
+  frameBase64?: string;
+}> {
+  const frameBase64 = await extractVideoFrame(videoUrl);
+  if (!frameBase64) {
+    return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
+  }
+
+  const client = getOpenAIClient();
+  if (!client) {
+    console.log("OpenAI not configured, cannot analyze video frame");
+    return { description: "", hazards: [], severity_indicator: "UNKNOWN", frameBase64 };
+  }
+
+  try {
+    const response = await client.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Analyze this video frame for public safety hazards. Return JSON with:
+{
+  "description": "brief description of what you see in the frame",
+  "hazards": ["list", "of", "identified", "hazards"],
+  "severity_indicator": "LOW|MODERATE|HIGH"
+}
+
+Look for: fire, flooding, structural damage, accidents, debris, dangerous conditions, etc.`,
+            },
+            {
+              type: "image_url",
+              image_url: { url: frameBase64 },
+            },
+          ],
+        },
+      ],
+    });
+
+    const content = response.choices[0].message.content || "{}";
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    const result = jsonMatch ? JSON.parse(jsonMatch[0]) : {
+      description: "",
+      hazards: [],
+      severity_indicator: "LOW",
+    };
+
+    console.log("✅ Video frame analyzed, hazards found:", result.hazards);
+    return { ...result, frameBase64 };
+  } catch (err: any) {
+    console.error("❌ Video vision analysis error:", err.message);
+    return { description: "", hazards: [], severity_indicator: "UNKNOWN", frameBase64 };
   }
 }
 

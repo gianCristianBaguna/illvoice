@@ -17,7 +17,6 @@ router.post('/', async (req: Request, res: Response) => {
         .json({ error: 'Email, title, description, and severity are required' });
     }
 
-    // Find user
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -28,7 +27,6 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Create report
     const report = await prisma.report.create({
       data: {
         title,
@@ -156,7 +154,6 @@ router.post('/:id/analyze', async (req: Request, res: Response) => {
   }
 
   try {
-    // Get the report with multimedia
     const report = await prisma.report.findUnique({
       where: { id },
       include: {
@@ -170,7 +167,6 @@ router.post('/:id/analyze', async (req: Request, res: Response) => {
       });
     }
 
-    // Analyze with AI
     const media = report.multimedia?.[0];
     const aiSeverity = await analyzeSeverity({
       title: report.title,
@@ -179,7 +175,6 @@ router.post('/:id/analyze', async (req: Request, res: Response) => {
       mediaUrl: media?.url,
     });
 
-    // Generate AI insights
     const insights = await generateAIInsights({
       title: report.title,
       description: report.description,
@@ -187,6 +182,19 @@ router.post('/:id/analyze', async (req: Request, res: Response) => {
       mediaUrl: media?.url,
       currentSeverity: report.severity,
     });
+
+    if (media && (media.type === "VIDEO" || media.type === "AUDIO")) {
+      await prisma.multimedia.update({
+        where: { id: media.id },
+        data: {
+          analysis: {
+            aiSeverity,
+            insights,
+            analyzedAt: new Date().toISOString(),
+          },
+        },
+      });
+    }
 
     return res.json({
       aiSeverity,

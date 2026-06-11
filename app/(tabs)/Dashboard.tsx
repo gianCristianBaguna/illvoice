@@ -1,20 +1,21 @@
-import { useAuth } from "@/app/services/auth-context";
+import { useAuth } from '@/contexts/auth-context';
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from "expo-audio";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
@@ -30,7 +31,7 @@ interface Report {
   multimedia?: { type: string; url: string }[];
 }
 
-const BACKEND_URL = "http://192.168.50.203:4000";
+const BACKEND_URL = "http://192.168.254.111:4000";
 
 interface DashboardStats {
   totalReports: number;
@@ -59,33 +60,12 @@ export default function Dashboard() {
     credibility: 1.0,
   });
   const [loading, setLoading] = useState(true);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [recordingStatus, setRecordingStatus] = useState<"idle" | "recording" | "stopped">("idle");
 
-  useEffect(() => {
-    getLocation();
-    fetchDashboardData();
-  }, [userEmail]);
-
-  const getLocation = async () => {
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Permission", "Location access is required for reporting");
-        return;
-      }
-
-      const currentLocation = await Location.getCurrentPositionAsync({});
-      setLocation({
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      });
-    } catch (err) {
-      console.error("Location error:", err);
-    }
-  };
-
-  const fetchDashboardData = async () => {
+  const loadDashboardData = async () => {
     if (!userEmail) return;
 
     try {
@@ -124,9 +104,32 @@ export default function Dashboard() {
     }
   };
 
+  useEffect(() => {
+    getLocation();
+    loadDashboardData();
+  }, [userEmail]);
+
+  const getLocation = async () => {
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission", "Location access is required for reporting");
+        return;
+      }
+
+      const currentLocation = await Location.getCurrentPositionAsync({});
+      setLocation({
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+      });
+    } catch (err) {
+      console.error("Location error:", err);
+    }
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchDashboardData();
+    await loadDashboardData();
     setRefreshing(false);
   };
 
@@ -154,8 +157,49 @@ export default function Dashboard() {
           setMediaType("IMAGE");
         }
       }
-    } catch (err) {
+    } catch {
+      // Error is handled by showing alert
       Alert.alert("Error", "Failed to pick media");
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission required", "Please allow microphone access");
+        return;
+      }
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecordingStatus("recording");
+    } catch {
+      // Error is handled by showing alert
+      Alert.alert("Error", "Failed to start recording");
+    }
+  };
+
+  const stopRecording = async () => {
+    if (recordingStatus !== "recording") return;
+
+    try {
+      setRecordingStatus("stopped");
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (uri) {
+        setMedia(uri);
+      }
+    } catch {
+      // Error is handled by showing alert
+      Alert.alert("Error", "Failed to stop recording");
+    } finally {
+      setRecordingStatus("idle");
     }
   };
 
@@ -201,7 +245,7 @@ export default function Dashboard() {
       setMedia(null);
       setMediaType("TEXT");
       setModalVisible(false);
-      await fetchDashboardData();
+      await loadDashboardData();
     } catch (err) {
       console.error("Error submitting report:", err);
       Alert.alert("Error", "Failed to submit report");
@@ -311,6 +355,7 @@ export default function Dashboard() {
           style={styles.actionButton}
           onPress={() => {
             setMediaType("AUDIO");
+            startRecording();
             setModalVisible(true);
           }}
         >
@@ -482,6 +527,14 @@ export default function Dashboard() {
                   {mediaType === "IMAGE" && (
                     <Image source={{ uri: media }} style={styles.mediaImage} />
                   )}
+                  {mediaType === "AUDIO" && (
+                    <View style={styles.audioPreview}>
+                      <Text style={styles.audioPreviewText}>🎵 Audio recorded</Text>
+                      <Text style={styles.audioDuration}>
+                        {recordingStatus === "stopped" ? "Ready to submit" : "Recording..."}
+                      </Text>
+                    </View>
+                  )}
                   <TouchableOpacity
                     onPress={() => setMedia(null)}
                     style={styles.removeMediaButton}
@@ -491,7 +544,27 @@ export default function Dashboard() {
                 </View>
               )}
 
-              {mediaType !== "TEXT" && !media && (
+              {mediaType === "AUDIO" && !media && (
+                <View style={styles.audioRecordingContainer}>
+                  <Text style={styles.audioInstructionText}>
+                    Tap and hold the record button to capture audio
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.recordButton,
+                      recordingStatus === "recording" && styles.recordingActiveButton
+                    ]}
+                    onPressIn={startRecording}
+                    onPressOut={stopRecording}
+                  >
+                    <Text style={styles.recordButtonText}>
+                      {recordingStatus === "recording" ? "● Recording..." : "● Press to Record"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {mediaType !== "TEXT" && mediaType !== "AUDIO" && !media && (
                 <TouchableOpacity
                   style={styles.mediaButton}
                   onPress={pickMedia}
@@ -789,5 +862,45 @@ const styles = StyleSheet.create({
     color: "#666",
     fontWeight: "bold",
     fontSize: 16,
+  },
+  audioRecordingContainer: {
+    alignItems: "center",
+    marginVertical: 12,
+  },
+  audioInstructionText: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  recordButton: {
+    backgroundColor: "#ff3b30",
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 30,
+    alignItems: "center",
+  },
+  recordingActiveButton: {
+    backgroundColor: "#ff9500",
+  },
+  recordButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  audioPreview: {
+    backgroundColor: "#e8f4f8",
+    padding: 20,
+    alignItems: "center",
+  },
+  audioPreviewText: {
+    fontSize: 18,
+    color: "#007AFF",
+    fontWeight: "600",
+  },
+  audioDuration: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 4,
   },
 });

@@ -1,4 +1,4 @@
-import { useAuth } from '@/app/services/auth-context';
+import { useAuth } from '@/contexts/auth-context';
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { router } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
@@ -34,10 +34,6 @@ export default function DrawerLayout() {
       {/* Screens */}
     </Drawer>
   );
-}
-
-function handleSignOut() {
-  router.replace("/(auth)/login");
 }
 
 // Styles

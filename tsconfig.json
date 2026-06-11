@@ -12,6 +12,10 @@
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-, "backend/prisma.config.ts", "backend/prisma.config.js"  ]
+    "expo-env.d.ts",
+    "backend/prisma.config.ts", "backend/prisma.config.js"
+  ],
+  "exclude": [
+    "web"
+  ]
 }

@@ -1,4 +1,4 @@
-import { useAuth } from "@/app/services/auth-context";
+import { useAuth } from '@/contexts/auth-context';
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -21,7 +21,7 @@ interface UserProfile {
   image?: string;
 }
 
-const BACKEND_URL = "http://192.168.50.203:4000";
+const BACKEND_URL = "http://192.168.254.111:4000";
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
