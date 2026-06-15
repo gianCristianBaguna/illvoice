@@ -1,11 +1,12 @@
 import { Router, type Request, type Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
+import jwt from 'jsonwebtoken';
 import { prisma } from '../../prisma';
 
 const router = Router();
 const primaryClientId = process.env.GOOGLE_CLIENT_ID;
 const fallbackClientId = process.env.GOOGLE_IOS_CLIENT_ID;
-const client = new OAuth2Client(primaryClientId);
+const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
 
 console.log("=== Google Auth Module Loaded ===");
 console.log("Primary GOOGLE_CLIENT_ID:", primaryClientId);
@@ -66,11 +67,17 @@ router.post('/', async (req: Request, res: Response) => {
         data: {
           name: payload.name,
           image: payload.picture,
-          googleEmail: payload.email, // Lock to this Gmail
+          googleEmail: payload.email,
         },
       });
 
-      return res.json({ user });
+      const token = jwt.sign(
+        { userId: user.id, email: user.email, name: user.name, role: user.role },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      return res.json({ user: { id: user.id, email: user.email, name: user.name, phoneNumber: user.phoneNumber, authMethod: user.authMethod }, token });
     }
 
     // Create new user
@@ -80,11 +87,17 @@ router.post('/', async (req: Request, res: Response) => {
         name: payload.name,
         image: payload.picture,
         authMethod: 'GOOGLE',
-        googleEmail: payload.email, // Lock first Gmail
+        googleEmail: payload.email,
       },
     });
 
-    return res.json({ user });
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, name: user.name, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    return res.json({ user: { id: user.id, email: user.email, name: user.name, phoneNumber: user.phoneNumber, authMethod: user.authMethod }, token });
   } catch (err: any) {
     console.error("Google auth error:", err);
     console.error("Error message:", err.message);

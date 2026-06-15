@@ -11,8 +11,8 @@ interface AuthContextType {
   isSignedIn: boolean;
   setUserEmail: (email: string) => void;
   setUserName: (name: string) => void;
-  setUserPhone: (phone: string) => void;
-  setIdToken: (token: string) => void;
+  setUserPhone: (phone: string | null) => void;
+  setIdToken: (token: string | null) => void;
   setAuthMethod: (method: 'GOOGLE' | 'USERNAME_PASSWORD') => void;
   signOut: () => Promise<void>;
   restoreToken: () => Promise<void>;
@@ -65,14 +65,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem('userName', name).catch(e => console.error('Failed to save name:', e));
   };
 
-  const handleSetUserPhone = (phone: string) => {
+  const handleSetUserPhone = (phone: string | null) => {
     setUserPhone(phone);
-    AsyncStorage.setItem('userPhone', phone).catch(e => console.error('Failed to save phone:', e));
+    if (phone) {
+      AsyncStorage.setItem('userPhone', phone).catch(e => console.error('Failed to save phone:', e));
+    } else {
+      AsyncStorage.removeItem('userPhone').catch(e => console.error('Failed to remove phone:', e));
+    }
   };
 
-  const handleSetIdToken = (token: string) => {
+  const handleSetIdToken = (token: string | null) => {
     setIdToken(token);
-    AsyncStorage.setItem('idToken', token).catch(e => console.error('Failed to save token:', e));
+    if (token) {
+      AsyncStorage.setItem('idToken', token).catch(e => console.error('Failed to save token:', e));
+    } else {
+      AsyncStorage.removeItem('idToken').catch(e => console.error('Failed to remove token:', e));
+    }
   };
 
   const handleSetAuthMethod = (method: 'GOOGLE' | 'USERNAME_PASSWORD') => {

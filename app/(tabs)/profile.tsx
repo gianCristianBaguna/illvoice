@@ -26,7 +26,7 @@ const BACKEND_URL = "http://192.168.254.111:4000";
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const { userEmail, userName, signOut } = useAuth();
+  const { userEmail, userName, idToken, signOut } = useAuth();
 
   useEffect(() => {
     fetchUserProfile();

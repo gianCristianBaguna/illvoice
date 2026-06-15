@@ -7,19 +7,20 @@ datasource db {
 }
 
 model User {
-  id          String    @id @default(cuid())
-  email       String    @unique
-  name        String?
-  phoneNumber String?
-  image       String?
-  password    String?   // For username/password registration (hashed)
-  authMethod  AuthMethod @default(GOOGLE) // GOOGLE or USERNAME_PASSWORD
-  googleEmail String?   // Store first Google email to prevent switching
-  role        Role      @default(RESIDENT)
-  credibility Float     @default(1.0)
-  createdAt   DateTime  @default(now())
-  reports     Report[]
-  Session     Session[]
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  phoneNumber   String?
+  image         String?
+  password      String?   // For username/password registration (hashed)
+  authMethod    AuthMethod @default(GOOGLE) // GOOGLE or USERNAME_PASSWORD
+  googleEmail   String?   // Store first Google email to prevent switching
+  role          Role      @default(RESIDENT)
+  credibility   Float     @default(1.0)
+  createdAt     DateTime  @default(now())
+  reports       Report[]
+  resolvedReports Report[]  @relation("ResolvedBy")
+  Session       Session[]
 }
 
 model Report {
@@ -33,9 +34,12 @@ model Report {
   longitude   Float?
   createdAt   DateTime     @default(now())
   barangayId  String?
+  resolvedById String?
+  resolvedAt  DateTime?
   multimedia  Multimedia[]
   barangay    Barangay?    @relation(fields: [barangayId], references: [id])
   user        User         @relation(fields: [userId], references: [id])
+  resolvedBy  User?        @relation("ResolvedBy", fields: [resolvedById], references: [id])
 }
 
 model Multimedia {

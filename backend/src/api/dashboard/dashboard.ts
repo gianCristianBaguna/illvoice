@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Request, Response, Router } from "express";
 import { prisma } from "../../prisma";
 import { analyzeSeverity } from "../../services/severityAI/index";
 import { Severity, MediaType } from "@prisma/client";
@@ -7,13 +7,27 @@ import { Severity, MediaType } from "@prisma/client";
 const router = Router();
 
 // ---------------- CREATE REPORT ----------------
-router.post("/reports/by-email", async (req, res) => {
+router.post("/reports/by-email", async (req: Request, res: Response) => {
   try {
-    const { email, title, description, mediaType, mediaUrl, latitude, longitude } = req.body;
+    const { title, description, mediaType, mediaUrl, latitude, longitude, email: overrideEmail } = req.body;
 
-    // basic validation up front
+    // Get email from authenticated user or override
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+    let email = overrideEmail;
+
+    if (token) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6');
+        email = decoded.email;
+      } catch (e) {
+        // Token invalid, continue with email from body
+      }
+    }
+
     if (!email) {
-      return res.status(400).json({ error: "Email is required to locate the user" });
+      return res.status(401).json({ error: "Authentication required" });
     }
 
     // ensure the client is connected (optional, idempotent)
@@ -86,12 +100,25 @@ router.post("/reports/by-email", async (req, res) => {
 });
 
 // ---------------- GET REPORTS BY EMAIL ----------------
-router.get("/reports/by-email", async (req, res) => {
+router.get("/reports/by-email", async (req: Request, res: Response) => {
   try {
-    const email = req.headers["x-user-email"] as string;
+    // Try to get email from authenticated user or query param
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+    let email = req.query.email as string | undefined;
+
+    if (token) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6');
+        email = decoded.email;
+      } catch (e) {
+        // Token invalid, continue with email from query
+      }
+    }
 
     if (!email) {
-      return res.status(400).json({ error: "Email header (X-User-Email) is required" });
+      return res.status(401).json({ error: "Authentication required. Please log in again." });
     }
 
     // Find user by email

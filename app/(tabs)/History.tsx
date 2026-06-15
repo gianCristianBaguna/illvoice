@@ -44,11 +44,13 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'RESOLVED'>('ALL');
-  const { userEmail } = useAuth();
+  const { userEmail, idToken } = useAuth();
 
   const fetchReports = async (isRefresh = false) => {
-    if (!userEmail) {
-      Alert.alert('Error', 'Please log in first');
+    if (!userEmail || !idToken) {
+      if (!userEmail) {
+        Alert.alert('Error', 'Please log in first');
+      }
       return;
     }
 
@@ -58,7 +60,7 @@ export default function HistoryScreen() {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Email': userEmail,
+          'Authorization': `Bearer ${idToken}`,
         },
       });
 

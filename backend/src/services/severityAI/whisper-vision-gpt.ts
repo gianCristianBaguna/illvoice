@@ -1,9 +1,9 @@
-import OpenAI from "openai";
-import fetch from "node-fetch";
+import { spawn } from "child_process";
 import fs from "fs";
+import fetch from "node-fetch";
+import OpenAI from "openai";
 import { tmpdir } from "os";
 import { join } from "path";
-import { spawn } from "child_process";
 
 let openai: OpenAI | null = null;
 
@@ -444,3 +444,4 @@ Include:
     return "Analysis unavailable due to API error.";
   }
 }
+

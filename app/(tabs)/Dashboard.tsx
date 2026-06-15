@@ -48,7 +48,7 @@ export default function Dashboard() {
     latitude: number;
     longitude: number;
   } | null>(null);
-  const { userEmail } = useAuth();
+  const { userEmail, idToken } = useAuth();
   const [media, setMedia] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"TEXT" | "IMAGE" | "VIDEO" | "AUDIO">("TEXT");
   const [userReports, setUserReports] = useState<Report[]>([]);
@@ -66,39 +66,53 @@ export default function Dashboard() {
   const [recordingStatus, setRecordingStatus] = useState<"idle" | "recording" | "stopped">("idle");
 
   const loadDashboardData = async () => {
-    if (!userEmail) return;
+    if (!userEmail) {
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
 
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      };
+
       // Fetch user reports
       const reportsResponse = await fetch(`${BACKEND_URL}/dashboard/reports/by-email`, {
-        headers: { "X-User-Email": userEmail },
+        headers,
       });
 
-      if (reportsResponse.ok) {
-        const reports = await reportsResponse.json();
-        setUserReports(reports);
-
-        // Calculate stats
-        const resolved = reports.filter((r: Report) => r.status === "RESOLVED").length;
-        const pending = reports.filter((r: Report) => r.status === "PENDING").length;
-        setStats({
-          totalReports: reports.length,
-          resolvedCount: resolved,
-          pendingCount: pending,
-          credibility: 1.0 + (resolved * 0.1), // Credibility increases with resolved reports
-        });
+      if (!reportsResponse.ok) {
+        const error = await reportsResponse.json().catch(() => ({}));
+        throw new Error(error.error || `Failed to fetch reports: ${reportsResponse.status}`);
       }
 
+      const reports = await reportsResponse.json();
+      const reportList = Array.isArray(reports) ? reports : [];
+      setUserReports(reportList);
+
+      // Calculate stats
+      const resolved = reportList.filter((r: Report) => r.status === "RESOLVED").length;
+      const pending = reportList.filter((r: Report) => r.status === "PENDING").length;
+      const inProgress = reportList.filter((r: Report) => r.status === "IN_PROGRESS").length;
+      setStats({
+        totalReports: reportList.length,
+        resolvedCount: resolved,
+        pendingCount: pending + inProgress,
+        credibility: 1.0 + (resolved * 0.1), // Credibility increases with resolved reports
+      });
+
       // Fetch all reports for nearby view
-      const allReportsResponse = await fetch(`${BACKEND_URL}/api/reports`);
+      const allReportsResponse = await fetch(`${BACKEND_URL}/dashboard/reports`, { headers });
       if (allReportsResponse.ok) {
         const allReports = await allReportsResponse.json();
-        setNearbyReports(allReports.slice(0, 10)); // Show top 10 recent
+        setNearbyReports(Array.isArray(allReports) ? allReports.slice(0, 10) : []);
       }
     } catch (err) {
       console.error("Error fetching dashboard:", err);
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to fetch dashboard data");
     } finally {
       setLoading(false);
     }
@@ -107,7 +121,7 @@ export default function Dashboard() {
   useEffect(() => {
     getLocation();
     loadDashboardData();
-  }, [userEmail]);
+  }, [userEmail, idToken]);
 
   const getLocation = async () => {
     try {

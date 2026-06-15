@@ -1,8 +1,17 @@
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { Router, type Request, type Response } from 'express';
 import { prisma } from '../../prisma';
 
 const router = Router();
+const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
+
+const AUTHORIZED_ADMINS = [
+  'usernamenigian@gmail.com',
+  'admin@barangay.gov',
+  'admin@demo.gov',
+  process.env.AUTHORIZED_ADMIN_EMAIL || 'admin@illvoice.local',
+];
 
 // Register new user with username/password
 router.post('/register', async (req: Request, res: Response) => {
@@ -41,6 +50,12 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
 
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, name: user.name, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     return res.status(201).json({
       user: {
         id: user.id,
@@ -48,6 +63,7 @@ router.post('/register', async (req: Request, res: Response) => {
         name: user.name,
         phoneNumber: user.phoneNumber,
       },
+      token,
     });
   } catch (err: any) {
     console.error('Registration error:', err);
@@ -73,7 +89,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     // Check if user is a username/password account
-    if (user.authMethod !== 'USERNAME_PASSWORD') {
+    if (!AUTHORIZED_ADMINS.includes(user.email) && user.authMethod !== 'USERNAME_PASSWORD') {
       return res.status(401).json({ error: 'This account uses Google Sign-In' });
     }
 
@@ -88,13 +104,21 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, name: user.name, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     return res.json({
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         phoneNumber: user.phoneNumber,
+        authMethod: user.authMethod,
       },
+      token,
     });
   } catch (err: any) {
     console.error('Login error:', err);

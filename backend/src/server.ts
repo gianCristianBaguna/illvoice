@@ -1,17 +1,16 @@
 import cors from "cors";
 import "dotenv/config";
 import express from "express";
-import adminRoutes from "./api/admin/google-signin";
+import adminRoutes from "./api/admin/login";
+import adminGoogleRoutes from "./api/admin/google-signin";
 import googleAuthRoutes from "./api/auth/google";
 import usernamePasswordAuthRoutes from "./api/auth/username-password";
 import dashboardRoutes from "./api/dashboard/dashboard";
 import reportRoutes from "./api/reports/index";
 import userRoutes from "./api/user/profile";
+import { authenticateToken, authorizeRoles } from "./middleware/auth";
 import { prisma } from "./prisma";
 
-import dotenv from 'dotenv';
-
-dotenv.config();
 console.log("Backend Google Client ID:", process.env.GOOGLE_CLIENT_ID);
 console.log("OpenAI API Key configured:", !!process.env.OPENAI_API_KEY);
 
@@ -33,12 +32,20 @@ prisma
     process.exit(1);
   });
 
+// Public auth routes
 app.use("/api/auth/google", googleAuthRoutes);
 app.use("/api/auth", usernamePasswordAuthRoutes);
 app.use("/api/reports", reportRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/admin", adminRoutes);
+
+// Dashboard routes (handle auth internally for mobile compatibility)
 app.use("/dashboard", dashboardRoutes);
+
+// Protected routes - user requires valid JWT
+app.use("/api/user", authenticateToken, userRoutes);
+
+// Admin routes (with their own internal authorization checks)
+app.use("/api/admin", adminRoutes);
+app.use("/api/admin", adminGoogleRoutes);
 
 const PORT = Number(process.env.PORT)|| 4000;
 
@@ -75,19 +82,75 @@ app.get("/debug-db", async (req, res) => {
 });
 
 app.get("/seed-test", async (req, res) => {
-  try {
-    const newUser = await prisma.user.create({
-      data: {
-        email: `test-${Date.now()}@example.com`,
-        name: "Test User",
-        role: "RESIDENT"
-      }
-    });
-    res.json({ success: true, user: newUser });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
+   try {
+     const newUser = await prisma.user.create({
+       data: {
+         email: `test-${Date.now()}@example.com`,
+         name: "Test User",
+         role: "RESIDENT"
+       }
+     });
+     res.json({ success: true, user: newUser });
+   } catch (err: any) {
+     res.status(500).json({ error: err.message });
+   }
+ });
+
+ app.get("/seed-demo-admin", async (req, res) => {
+   try {
+     const bcrypt = require('bcryptjs');
+     const hashedPassword = await bcrypt.hash('admin123', 10);
+     const existingUser = await prisma.user.findUnique({ where: { email: 'admin@demo.gov' } });
+     if (existingUser) {
+       await prisma.user.update({
+         where: { email: 'admin@demo.gov' },
+         data: { password: hashedPassword, authMethod: 'USERNAME_PASSWORD', role: 'BARANGAY_OFFICIAL' }
+       });
+       res.json({ success: true, message: 'Demo admin updated with password' });
+     } else {
+       const user = await prisma.user.create({
+         data: {
+           email: 'admin@demo.gov',
+           name: 'Demo Admin',
+           password: hashedPassword,
+           authMethod: 'USERNAME_PASSWORD',
+           role: 'BARANGAY_OFFICIAL'
+         }
+       });
+       res.json({ success: true, user });
+     }
+   } catch (err: any) {
+     res.status(500).json({ error: err.message });
+   }
+ });
+
+ app.get("/seed-barangay-admin", async (req, res) => {
+   try {
+     const bcrypt = require('bcryptjs');
+     const hashedPassword = await bcrypt.hash('admin123', 10);
+     const existingUser = await prisma.user.findUnique({ where: { email: 'admin@barangay.gov' } });
+     if (existingUser) {
+       await prisma.user.update({
+         where: { email: 'admin@barangay.gov' },
+         data: { password: hashedPassword, authMethod: 'USERNAME_PASSWORD', role: 'BARANGAY_OFFICIAL' }
+       });
+       res.json({ success: true, message: 'Barangay admin updated with password' });
+     } else {
+       const user = await prisma.user.create({
+         data: {
+           email: 'admin@barangay.gov',
+           name: 'Barangay Admin',
+           password: hashedPassword,
+           authMethod: 'USERNAME_PASSWORD',
+           role: 'BARANGAY_OFFICIAL'
+         }
+       });
+       res.json({ success: true, user });
+     }
+   } catch (err: any) {
+     res.status(500).json({ error: err.message });
+   }
+ });
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
