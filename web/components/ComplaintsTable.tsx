@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -10,22 +9,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Complaint } from '@/lib/mockData';
 import { useMemo, useState } from 'react';
 
 interface ComplaintsTableProps {
   complaints: Complaint[];
-  onComplaintClick: (complaint: Complaint) => void;
-  onComplaintsUpdate: (updatedComplaint: Complaint) => void;
   onViewComplaint: (complaint: Complaint) => void;
+  onComplaintsUpdate: (updatedComplaint: Complaint) => void;
 }
 
 type SortField = 'reportedDate' | 'severity' | 'status';
@@ -33,9 +23,8 @@ type SortOrder = 'asc' | 'desc';
 
 export function ComplaintsTable({ 
   complaints: complaintsProp,
-  onComplaintClick,
-  onComplaintsUpdate,
   onViewComplaint,
+  onComplaintsUpdate,
 }: ComplaintsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string>('ALL');
@@ -78,13 +67,13 @@ export function ComplaintsTable({
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'HIGH':
-        return 'bg-red-100 text-red-700';
+        return 'bg-red-100 text-red-700 ring-red-600/20';
       case 'MODERATE':
-        return 'bg-yellow-100 text-yellow-700';
+        return 'bg-amber-100 text-amber-700 ring-amber-600/20';
       case 'LOW':
-        return 'bg-green-100 text-green-700';
+        return 'bg-emerald-100 text-emerald-700 ring-emerald-600/20';
       default:
-        return 'bg-gray-100 text-gray-700';
+        return 'bg-white text-gray-700 ring-gray-600/20';
     }
   };
 
@@ -92,13 +81,13 @@ export function ComplaintsTable({
     switch (status) {
       case 'OPEN':
       case 'PENDING':
-        return 'bg-red-100 text-red-700';
+        return 'bg-red-100 text-red-700 ring-red-600/20';
       case 'IN_PROGRESS':
-        return 'bg-yellow-100 text-yellow-700';
+        return 'bg-amber-100 text-amber-700 ring-amber-600/20';
       case 'RESOLVED':
-        return 'bg-green-100 text-green-700';
+        return 'bg-emerald-100 text-emerald-700 ring-emerald-600/20';
       default:
-        return 'bg-gray-100 text-gray-700';
+        return 'bg-white text-gray-700 ring-gray-600/20';
     }
   };
 
@@ -112,32 +101,32 @@ export function ComplaintsTable({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-slate-200">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
+      <div className="p-5 md:p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">Recent Reports</h3>
-          <a href="#" className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+          <h3 className="text-sm font-semibold text-slate-800">Recent Reports</h3>
+          <a href="/reports" className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors">
             View All
           </a>
         </div>
       </div>
       
       {/* Filters */}
-      <div className="p-3 md:p-4 border-b border-slate-200 bg-slate-50">
+      <div className="p-3 md:p-4 border-b border-slate-200 bg-white">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
-            <label className="text-sm font-medium mb-1 md:mb-2 block">Search</label>
+            <label className="text-sm font-medium mb-1 md:mb-2 block text-slate-700">Search</label>
             <Input
               placeholder="Search by ID, title, user, or barangay..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="border-slate-300 text-sm"
+              className=" focus:border-blue-500 focus:ring-blue-500/20 text-sm rounded-lg "
             />
           </div>
           <div>
-            <label className="text-sm font-medium mb-1 md:mb-2 block">Severity</label>
+            <label className="text-sm font-medium mb-1 md:mb-2 block text-slate-700">Severity</label>
             <Select value={severityFilter} onValueChange={setSeverityFilter}>
-              <SelectTrigger className="border-slate-300">
+              <SelectTrigger className="border-slate-300 focus:border-amber-500 rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -149,9 +138,9 @@ export function ComplaintsTable({
             </Select>
           </div>
           <div>
-            <label className="text-sm font-medium mb-1 md:mb-2 block">Status</label>
+            <label className="text-sm font-medium mb-1 md:mb-2 block text-slate-700">Status</label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="border-slate-300">
+              <SelectTrigger className="border-slate-300 focus:border-emerald-500 rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -168,58 +157,54 @@ export function ComplaintsTable({
 
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-slate-50 border-b border-slate-200">
+          <thead className="bg-white border-b border-slate-200">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">ID</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">TYPE</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">SEVERITY</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">STATUS</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">LOCATION</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">ACTION</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">ID</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">TYPE</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('severity')}>
+                SEVERITY {sortField === 'severity' && (sortOrder === 'asc' ? '↑' : '↓')}
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('status')}>
+                STATUS {sortField === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">LOCATION</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">ACTION</th>
             </tr>
           </thead>
           <tbody>
             {filteredAndSorted.length > 0 ? (
               filteredAndSorted.map((complaint, index) => (
-                <tr key={complaint.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                  <td className="px-6 py-3 text-sm text-blue-600 font-medium">#{complaint.id.slice(0, 8)}</td>
-                  <td className="px-6 py-3 text-sm text-slate-900">{complaint.title}</td>
-                  <td className="px-6 py-3 text-sm">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${getSeverityColor(complaint.severity)}`}>
+                <tr key={complaint.id} className={index % 2 === 0 ? 'bg-white' : 'bg-white hover:bg-white transition-colors'}>
+                  <td className="px-6 py-4 text-sm text-blue-600 font-medium">#{complaint.id.slice(0, 8)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-900 font-medium">{complaint.title}</td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${getSeverityColor(complaint.severity)}`}>
                       {complaint.severity}
                     </span>
                   </td>
-                  <td className="px-6 py-3 text-sm">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(complaint.status)}`}>
+                  <td className="px-6 py-4">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${getStatusColor(complaint.status)}`}>
                       {complaint.status}
                     </span>
                   </td>
-                  <td className="px-6 py-3 text-sm text-slate-600">
-                    {complaint.barangay || 'Unknown'}
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    {complaint.barangay || 'Location not recorded'}
                   </td>
-                  <td className="px-6 py-3 text-sm">
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onViewComplaint(complaint)}
-                      >
-                        View
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onComplaintClick(complaint)}
-                      >
-                        Resolve
-                      </Button>
-                    </div>
+                  <td className="px-6 py-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onViewComplaint(complaint)}
+                      className="border-slate-300 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-all"
+                    >
+                      View
+                    </Button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                   No complaints found matching your filters.
                 </td>
               </tr>

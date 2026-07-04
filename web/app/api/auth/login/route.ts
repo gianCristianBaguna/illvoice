@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
   try {
     const { email, password, role } = await request.json();
 
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://192.168.5.235:4000';
     const response = await fetch(`${backendUrl}/api/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -25,7 +25,6 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
 
     (await cookies()).set('adminToken', data.token, {
-      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
@@ -48,7 +47,17 @@ export async function POST(request: NextRequest) {
       path: '/',
     });
 
-    return NextResponse.json({ success: true, token: data.token, email: data.email, name: data.name, role: data.role });
+    if (data.barangayId) {
+      (await cookies()).set('barangayId', data.barangayId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7,
+        path: '/',
+      });
+    }
+
+    return NextResponse.json({ success: true, token: data.token, email: data.email, name: data.name, role: data.role, barangayId: data.barangayId || null });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Login failed' }, { status: 500 });
   }

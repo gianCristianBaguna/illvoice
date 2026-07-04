@@ -1,4 +1,6 @@
 import { useAuth } from '@/contexts/auth-context';
+import { BACKEND_URL } from '@/config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -15,8 +17,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BACKEND_URL = "http://192.168.254.111:4000";
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
@@ -78,6 +78,13 @@ export default function SignUpScreen() {
           setUserPhone(loginResult.user.phoneNumber || null);
           setIdToken(loginResult.token);
           setAuthMethod('USERNAME_PASSWORD');
+          await AsyncStorage.multiSet([
+            ['idToken', loginResult.token],
+            ['userEmail', loginResult.user.email],
+            ['userName', loginResult.user.name || ''],
+            ['phoneNumber', loginResult.user.phoneNumber || ''],
+            ['authMethod', 'USERNAME_PASSWORD'],
+          ]);
           router.replace('/(tabs)/Dashboard');
         } else {
           Alert.alert('Success', 'Account created! Please log in.');

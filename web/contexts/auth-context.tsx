@@ -8,7 +8,8 @@ interface AuthContextType {
   adminEmail: string | null;
   adminToken: string | null;
   adminRole: 'ADMIN' | 'BARANGAY_OFFICIAL' | null;
-  login: (token: string, email: string, role?: string) => void;
+  barangayId: string | null;
+  login: (token: string, email: string, role?: string, barangayId?: string) => void;
   logout: () => Promise<void>;
   hasRole: (roles: string[]) => boolean;
 }
@@ -20,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [adminRole, setAdminRole] = useState<'ADMIN' | 'BARANGAY_OFFICIAL' | null>(null);
+  const [barangayId, setBarangayId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,6 +33,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAdminToken(data.token);
           setAdminEmail(data.email);
           setAdminRole((data.role as 'ADMIN' | 'BARANGAY_OFFICIAL') || 'ADMIN');
+          setBarangayId(data.barangayId || null);
+          if (typeof window !== 'undefined' && data.token) {
+            window.localStorage.setItem('adminToken', data.token);
+          }
           setIsAuthenticated(true);
         }
       } catch {
@@ -43,11 +49,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
-  const login = (token: string, email: string, role?: string) => {
+  const login = (token: string, email: string, role?: string, barangayId?: string) => {
     setAdminToken(token);
     setAdminEmail(email);
     setAdminRole((role as 'ADMIN' | 'BARANGAY_OFFICIAL') || 'ADMIN');
+    setBarangayId(barangayId || null);
     setIsAuthenticated(true);
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('adminToken', token);
+    }
   };
 
   const logout = async () => {
@@ -56,7 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAdminToken(null);
     setAdminEmail(null);
     setAdminRole(null);
+    setBarangayId(null);
     setIsAuthenticated(false);
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('adminToken');
+    }
   };
 
   const hasRole = (roles: string[]) => {
@@ -73,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, adminEmail, adminToken, adminRole, login, logout, hasRole, loading }}>
+    <AuthContext.Provider value={{ isAuthenticated, adminEmail, adminToken, adminRole, barangayId, login, logout, hasRole, loading }}>
       {children}
     </AuthContext.Provider>
   );

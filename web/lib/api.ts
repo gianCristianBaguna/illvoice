@@ -1,14 +1,17 @@
-import { Complaint } from './mockData';
+import { Complaint, TeamMember } from './mockData';
 
 export const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+  process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://192.168.5.235:4000';
 
 export async function getAdminToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
-  return document.cookie
+
+  const tokenFromCookie = document.cookie
     .split('; ')
     .find((row) => row.startsWith('adminToken='))
     ?.split('=')[1] || null;
+
+  return tokenFromCookie || window.localStorage.getItem('adminToken') || null;
 }
 
 const authHeaders = async (): Promise<Record<string, string>> => {
@@ -19,20 +22,21 @@ const authHeaders = async (): Promise<Record<string, string>> => {
   return {};
 };
 
+function normalizeStatusForBackend(status: Complaint['status']) {
+  return status === 'OPEN' ? 'PENDING' : status;
+}
+
 function mapReportToComplaint(r: any): Complaint {
-  // convert the response shape from backend to UI shape
   return {
     id: r.id,
     title: r.title,
     description: r.description,
     severity: r.severity as Complaint['severity'],
-    // backend uses PENDING, convert to OPEN so the rest of the UI doesn't need
-    // to worry about it.
     status: r.status === 'PENDING' ? ('OPEN' as Complaint['status']) : (r.status as Complaint['status']),
     reportedDate: r.createdAt,
-    assignedTo: undefined,
-    deadline: undefined,
-    resolutionNotes: undefined,
+    assignedTo: r.assignedTo || undefined,
+    deadline: r.deadline || undefined,
+    resolutionNotes: r.resolutionNotes || undefined,
     category: r.category || '',
     userEmail: r.user?.email || '',
     userName: r.user?.name || '',
@@ -47,14 +51,13 @@ function mapReportToComplaint(r: any): Complaint {
     barangay: r.barangay?.name || null,
     resolvedBy: r.resolvedBy?.name || null,
     resolvedAt: r.resolvedAt || null,
+    isCredible: r.isCredible || false,
   };
 }
 
 export async function fetchComplaints(): Promise<Complaint[]> {
   const headers = await authHeaders();
-  const res = await fetch(`${BACKEND_URL}/api/reports`, {
-    headers,
-  });
+  const res = await fetch(`${BACKEND_URL}/api/reports`, { headers });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Failed to fetch complaints: ${res.status} ${text}`);
@@ -66,30 +69,22 @@ export async function fetchComplaints(): Promise<Complaint[]> {
   return data.map(mapReportToComplaint);
 }
 
-// Fetch real-time activity feed from backend
 export async function fetchActivityFeed(): Promise<ActivityItem[]> {
   const headers = await authHeaders();
-  const res = await fetch(`${BACKEND_URL}/api/reports/activity`, {
-    headers,
-  });
+  const res = await fetch(`${BACKEND_URL}/api/reports/activity`, { headers });
   if (!res.ok) {
     return [];
   }
-  const data = await res.json();
-  return data;
+  return await res.json();
 }
 
-// Fetch urgent/high priority alerts
 export async function fetchUrgentAlerts(): Promise<AlertItem[]> {
   const headers = await authHeaders();
-  const res = await fetch(`${BACKEND_URL}/api/reports/urgent`, {
-    headers,
-  });
+  const res = await fetch(`${BACKEND_URL}/api/reports/urgent`, { headers });
   if (!res.ok) {
     return [];
   }
-  const data = await res.json();
-  return data;
+  return await res.json();
 }
 
 export interface ActivityItem {
@@ -114,13 +109,16 @@ export interface AlertItem {
   longitude: number | null;
 }
 
-// send modifications to the backend so they persist
 export async function updateComplaint(complaint: Complaint): Promise<Complaint> {
   const headers = await authHeaders();
   const payload: any = {};
-  if (complaint.status) payload.status = complaint.status;
+  if (complaint.status) payload.status = normalizeStatusForBackend(complaint.status);
   if (complaint.severity) payload.severity = complaint.severity;
-  if (complaint.resolvedBy) payload.resolvedByName = complaint.resolvedBy;
+  if (complaint.resolvedBy !== undefined) payload.resolvedByName = complaint.resolvedBy;
+  if (complaint.assignedTo !== undefined) payload.assignedTo = complaint.assignedTo;
+  if (complaint.deadline !== undefined) payload.deadline = complaint.deadline;
+  if (complaint.resolutionNotes !== undefined) payload.resolutionNotes = complaint.resolutionNotes;
+  if (complaint.isCredible !== undefined) payload.isCredible = complaint.isCredible;
 
   const res = await fetch(`${BACKEND_URL}/api/reports/${complaint.id}`, {
     method: 'PATCH',
@@ -133,7 +131,22 @@ export async function updateComplaint(complaint: Complaint): Promise<Complaint> 
     throw new Error(`Failed to update complaint: ${res.status} ${text}`);
   }
   const data = await res.json();
-  // backend returns { message, report }
+  return mapReportToComplaint(data.report);
+}
+
+export async function updateComplaintStatus(complaintId: string, status: Complaint['status']): Promise<Complaint> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/reports/${complaintId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ status: normalizeStatusForBackend(status) }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to update complaint status: ${res.status} ${text}`);
+  }
+  const data = await res.json();
   return mapReportToComplaint(data.report);
 }
 
@@ -168,4 +181,186 @@ export async function analyzeComplaintWithAI(complaintId: string): Promise<{
     throw new Error(`Failed to analyze complaint: ${res.status} ${text}`);
   }
   return await res.json();
+}
+
+export interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  phoneNumber: string | null;
+  role: 'RESIDENT' | 'BARANGAY_OFFICIAL' | 'ADMIN';
+  credibility: number;
+  createdAt: string;
+  reportCount: number;
+  barangayId: string | null;
+}
+
+export async function fetchUsers(): Promise<User[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/users`, { headers });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to fetch users: ${res.status} ${text}`);
+  }
+  return await res.json();
+}
+
+export async function fetchTeamMembers(): Promise<TeamMember[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/users`, { headers });
+  if (!res.ok) {
+    throw new Error('Failed to fetch team members');
+  }
+  const users: User[] = await res.json();
+  return users
+    .filter(user => user.role !== 'RESIDENT')
+    .map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    }));
+}
+
+export interface BarangayInfo {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  address?: string | null;
+}
+
+export async function fetchBarangayInfo(barangayId: string): Promise<BarangayInfo | null> {
+  try {
+    const headers = await authHeaders();
+    const res = await fetch(`${BACKEND_URL}/api/admin/barangays/${barangayId}`, { headers });
+    if (!res.ok) {
+      return null;
+    }
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export interface BarangayAccount {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  address: string | null;
+  boundaryPolygon?: any;
+  officialCount?: number;
+}
+
+export async function fetchBarangayAccounts(): Promise<BarangayAccount[]> {
+  try {
+    const headers = await authHeaders();
+    const res = await fetch(`${BACKEND_URL}/api/admin/barangays`, { headers });
+    if (!res.ok) {
+      return [];
+    }
+    const barangays = await res.json();
+    
+    // Fetch official counts for each barangay
+    const accountsWithCounts = await Promise.all(
+      barangays.map(async (b: any) => {
+        try {
+          const offRes = await fetch(`${BACKEND_URL}/api/admin/barangays/${b.id}/officials`, { headers });
+          const officials = offRes.ok ? await offRes.json() : [];
+          return { ...b, officialCount: officials.length };
+        } catch {
+          return { ...b, officialCount: 0 };
+        }
+      })
+    );
+    
+    return accountsWithCounts;
+  } catch {
+    return [];
+  }
+}
+
+export async function createBarangayAccount(data: {
+  name: string;
+  latitude: number;
+  longitude: number;
+  address?: string;
+  boundaryPolygon?: any;
+}): Promise<BarangayAccount> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/barangays`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to create barangay');
+  }
+  return await res.json();
+}
+
+export async function updateBarangayAccount(id: string, data: Partial<BarangayAccount>): Promise<BarangayAccount> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/barangays/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to update barangay');
+  }
+  return await res.json();
+}
+
+export async function deleteBarangayAccount(id: string): Promise<void> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/barangays/${id}`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to delete barangay');
+  }
+}
+
+export async function updateUserPassword(userId: string, password: string): Promise<void> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/users/${userId}/password`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to update password');
+  }
+}
+
+export async function updateUserStatus(userId: string, active: boolean): Promise<void> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/users/${userId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ active }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to update user status');
+  }
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to delete user');
+  }
 }

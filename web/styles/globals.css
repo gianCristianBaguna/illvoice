@@ -123,3 +123,152 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Map container styles */
+.map-container {
+  width: 100%;
+  height: 600px;
+  position: relative;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.map-container .leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.map-container .leaflet-tile {
+  filter: none !important;
+}
+
+.map-pin-icon {
+  background: transparent;
+  border: none;
+}
+
+/* Map pin marker styles */
+.map-pin {
+  position: relative;
+  display: block;
+  width: 24px;
+  height: 24px;
+  border: 2px solid white;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.map-pin::after {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  content: '';
+}
+
+.map-pin.high {
+  background: #ef4444;
+}
+
+.map-pin.high::after {
+  background: #fee2e2;
+}
+
+.map-pin.moderate {
+  background: #f59e0b;
+}
+
+.map-pin.moderate::after {
+  background: #fef9c3;
+}
+
+.map-pin.low {
+  background: #10b981;
+}
+
+.map-pin.low::after {
+  background: #dcfce7;
+}
+
+.map-popup {
+  min-width: 180px;
+  font-family: system-ui, sans-serif;
+}
+
+.map-popup-title {
+  margin-bottom: 4px;
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.map-popup-location {
+  color: #475569;
+  font-size: 12px;
+}
+
+.map-popup-severity {
+  display: inline-flex;
+  margin-top: 8px;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.map-popup-severity.high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.map-popup-severity.moderate {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.map-popup-severity.low {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.map-pin-small {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.map-pin-small.high {
+  background: #ef4444;
+}
+
+.map-pin-small.moderate {
+  background: #f59e0b;
+}
+
+.map-pin-small.low {
+  background: #10b981;
+}
+
+.map-pin-large {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.map-pin-large.high {
+  background: #ef4444;
+}
+
+.map-pin-large.moderate {
+  background: #f59e0b;
+}
+
+.map-pin-large.low {
+  background: #10b981;
+}

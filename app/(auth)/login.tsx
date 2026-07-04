@@ -1,22 +1,22 @@
 import { useAuth } from '@/contexts/auth-context';
+import { BACKEND_URL } from '@/config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Button,
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Pressable,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 
 GoogleSignin.configure({
   webClientId: "801122004565-t78a89ko4m5j82dqbkam2feq1kccpchr.apps.googleusercontent.com",
@@ -27,8 +27,6 @@ GoogleSignin.configure({
   profileImageSize: 120,
 });
 
-const BACKEND_URL = "http://192.168.254.111:4000";
-
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,7 +34,7 @@ export default function LoginScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { setUserEmail, setUserName, setUserPhone, setIdToken, setAuthMethod } = useAuth();
+  const { setUserEmail, setUserName, setUserPhoto, setUserPhone, setIdToken, setAuthMethod } = useAuth();
 
   const handleGoogleSignin = async () => {
     if (isLoading) return;
@@ -50,6 +48,7 @@ export default function LoginScreen() {
         const { idToken } = response.data;
         const userEmail = response.data.user.email;
         const userName = response.data.user.name;
+        const userPhoto = response.data.user.photo;
 
         try {
           const backendResponse = await fetch(`${BACKEND_URL}/api/auth/google`, {
@@ -64,8 +63,16 @@ export default function LoginScreen() {
             console.log("Google authentication successful:", result.user);
             setUserEmail(userEmail);
             setUserName(userName);
+            userPhoto && setUserPhoto(userPhoto);
             setIdToken(result.token);
             setAuthMethod('GOOGLE');
+            await AsyncStorage.multiSet([
+              ['idToken', result.token],
+              ['userEmail', userEmail],
+              ['userName', userName || ''],
+              ['userPhoto', userPhoto || ''],
+              ['authMethod', 'GOOGLE'],
+            ]);
             router.replace('/(tabs)/Dashboard');
           } else {
             console.log("Google auth failed:", backendResponse.status, result);
@@ -102,17 +109,24 @@ export default function LoginScreen() {
 
       const result = await response.json();
 
-      if (response.ok) {
-        if (result.token) {
-          setUserEmail(result.user.email);
-          setUserName(result.user.name);
-          setUserPhone(result.user.phoneNumber || null);
-          setIdToken(result.token);
-          setAuthMethod('USERNAME_PASSWORD');
-          setEmail('');
-          setPassword('');
-          router.replace('/(tabs)/Dashboard');
-        } else {
+        if (response.ok) {
+          if (result.token) {
+            setUserEmail(result.user.email);
+            setUserName(result.user.name);
+            setUserPhone(result.user.phoneNumber || null);
+            setIdToken(result.token);
+            setAuthMethod('USERNAME_PASSWORD');
+            await AsyncStorage.multiSet([
+              ['idToken', result.token],
+              ['userEmail', result.user.email],
+              ['userName', result.user.name || ''],
+              ['phoneNumber', result.user.phoneNumber || ''],
+              ['authMethod', 'USERNAME_PASSWORD'],
+            ]);
+            setEmail('');
+            setPassword('');
+            router.replace('/(tabs)/Dashboard');
+          } else {
           Alert.alert('Error', 'No authentication token received');
         }
       } else {

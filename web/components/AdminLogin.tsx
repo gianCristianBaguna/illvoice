@@ -51,8 +51,12 @@ export function AdminLogin() {
           throw new Error('Invalid server response');
         }
 
-        login(data.token, data.email, data.role);
-        router.push('/dashboard');
+        login(data.token, data.email, data.role, data.barangayId);
+        if (data.role === 'BARANGAY_OFFICIAL') {
+          router.push('/barangay-dashboard');
+        } else {
+          router.push('/dashboard');
+        }
       } catch (err: any) {
         setError(err.message || 'Google sign-in failed');
       } finally {
@@ -112,10 +116,10 @@ export function AdminLogin() {
         throw new Error(msg);
       }
 
-      const data = await response.json();
+const data = await response.json();
 
-      login(data.token, data.email, data.role);
-      router.push('/dashboard');
+       login(data.token, data.email, data.role, data.barangayId || null);
+       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
@@ -184,6 +188,13 @@ export function AdminLogin() {
           <p>Email: admin@demo.gov</p>
           <p>Password: admin123</p>
           <p className="mt-2 text-xs">Role: BARANGAY OFFICIAL</p>
+        </div>
+
+        <div className="mt-4 p-4 bg-green-50 rounded-lg text-sm text-green-800">
+          <p className="font-semibold mb-2">Admin Credentials:</p>
+          <p>Email: admin@illvoice.local</p>
+          <p>Password: admin123</p>
+          <p className="mt-2 text-xs">Role: ADMIN (sees all reports)</p>
         </div>
       </div>
     </div>

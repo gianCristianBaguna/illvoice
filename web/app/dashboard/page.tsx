@@ -6,9 +6,9 @@ import { AlertBanner } from '@/components/alert-banner';
 import { ActivityFeed } from '@/components/activity-feed';
 import { Sidebar } from '@/components/sidebar';
 import { ViewReportModal } from '@/components/ViewReportModal';
-import { ResolutionModal } from '@/components/ResolutionModal';
+import { UrgentReportsModal } from '@/components/UrgentReportsModal';
 import { Button } from '@/components/ui/button';
-import { fetchComplaints, updateComplaint } from '@/lib/api';
+import { fetchComplaints } from '@/lib/api';
 import { Complaint } from '@/lib/mockData';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
@@ -17,8 +17,8 @@ import { useRouter } from 'next/navigation';
 export default function DashboardPage() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [viewComplaint, setViewComplaint] = useState<Complaint | null>(null);
+  const [showUrgentModal, setShowUrgentModal] = useState(false);
   const { isAuthenticated, logout, adminEmail } = useAuth();
   const router = useRouter();
 
@@ -51,17 +51,8 @@ export default function DashboardPage() {
     setViewComplaint(complaint);
   };
 
-  const handleResolveComplaint = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
-  };
-
-  const handleSaveComplaint = async () => {
-    try {
-      const updated = await fetchComplaints();
-      setComplaints(updated);
-    } catch (err) {
-      console.error('Error refreshing complaints:', err);
-    }
+  const handleViewUrgent = () => {
+    setShowUrgentModal(true);
   };
 
   const handleComplaintsUpdate = (updatedComplaint: Complaint) => {
@@ -110,7 +101,7 @@ export default function DashboardPage() {
         <main className="px-3 py-4 md:px-6 md:py-6">
           <div className="max-w-7xl mx-auto space-y-4 md:space-y-6">
             {/* Alert Banner - Real-time from database */}
-            <AlertBanner />
+            <AlertBanner onViewUrgent={handleViewUrgent} />
 
             {/* Analytics Charts */}
             <div className="grid grid-cols-1 gap-3 md:gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -124,7 +115,6 @@ export default function DashboardPage() {
               <div className="lg:col-span-2">
                 <ComplaintsTable
                   complaints={complaints}
-                  onComplaintClick={handleResolveComplaint}
                   onComplaintsUpdate={handleComplaintsUpdate}
                   onViewComplaint={handleViewComplaint}
                 />
@@ -144,12 +134,10 @@ export default function DashboardPage() {
         onClose={() => setViewComplaint(null)}
       />
 
-      {/* Resolve Report Modal */}
-      <ResolutionModal
-        complaint={selectedComplaint}
-        isOpen={!!selectedComplaint}
-        onClose={() => setSelectedComplaint(null)}
-        onSave={handleSaveComplaint}
+      <UrgentReportsModal
+        isOpen={showUrgentModal}
+        onClose={() => setShowUrgentModal(false)}
+        onViewReport={setViewComplaint}
       />
     </div>
   );

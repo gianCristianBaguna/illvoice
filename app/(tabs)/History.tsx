@@ -1,16 +1,19 @@
 import { useAuth } from '@/contexts/auth-context';
-import React, { useEffect, useState } from 'react';
+import { BACKEND_URL } from '@/config';
+import { Ionicons } from '@expo/vector-icons';
+import { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface Report {
   id: string;
@@ -30,8 +33,6 @@ interface HistoryStats {
   avgResolutionTime: string;
 }
 
-const BACKEND_URL = 'http://192.168.254.111:4000';
-
 export default function HistoryScreen() {
   const [reports, setReports] = useState<Report[]>([]);
   const [stats, setStats] = useState<HistoryStats>({
@@ -46,7 +47,7 @@ export default function HistoryScreen() {
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'RESOLVED'>('ALL');
   const { userEmail, idToken } = useAuth();
 
-  const fetchReports = async (isRefresh = false) => {
+  const fetchReports = useCallback(async (isRefresh = false) => {
     if (!userEmail || !idToken) {
       if (!userEmail) {
         Alert.alert('Error', 'Please log in first');
@@ -72,7 +73,6 @@ export default function HistoryScreen() {
       const reportList = Array.isArray(data) ? data : [];
       setReports(reportList);
 
-      // Calculate statistics
       const total = reportList.length;
       const resolved = reportList.filter((r: Report) => r.status === 'RESOLVED').length;
       const pending = reportList.filter((r: Report) => r.status === 'PENDING').length;
@@ -92,11 +92,11 @@ export default function HistoryScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [userEmail, idToken]);
 
   useEffect(() => {
     fetchReports();
-  }, [userEmail]);
+  }, [fetchReports]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -111,29 +111,16 @@ export default function HistoryScreen() {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusConfig = (status: string) => {
     switch (status) {
       case 'PENDING':
-        return '#dc2626';
+        return { color: '#dc2626', icon: 'hourglass' as const, label: 'Pending' };
       case 'IN_PROGRESS':
-        return '#2563eb';
+        return { color: '#2563eb', icon: 'refresh-circle' as const, label: 'In Progress' };
       case 'RESOLVED':
-        return '#16a34a';
+        return { color: '#34c759', icon: 'checkmark-circle' as const, label: 'Resolved' };
       default:
-        return '#6b7280';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'PENDING':
-        return '⏳';
-      case 'IN_PROGRESS':
-        return '🔄';
-      case 'RESOLVED':
-        return '✅';
-      default:
-        return '❓';
+        return { color: '#6b7280', icon: 'help-circle' as const, label: 'Unknown' };
     }
   };
 
@@ -142,77 +129,107 @@ export default function HistoryScreen() {
     return report.status === selectedFilter;
   });
 
-  const renderReportItem = ({ item }: { item: Report }) => (
-    <TouchableOpacity style={styles.reportCard} activeOpacity={0.7}>
-      <View style={styles.reportHeader}>
-        <View style={styles.statusIconContainer}>
-          <Text style={styles.statusIcon}>{getStatusIcon(item.status)}</Text>
+  const renderReportItem = ({ item }: { item: Report }) => {
+    const statusConfig = getStatusConfig(item.status);
+    return (
+      <TouchableOpacity style={styles.reportCard} activeOpacity={0.7}>
+        <View style={styles.reportHeader}>
+          <View style={styles.reportCardLeft}>
+            <View style={[styles.statusDot, { backgroundColor: statusConfig.color }]} />
+          </View>
+          <View style={styles.reportCardContent}>
+            <Text style={styles.reportTitle} numberOfLines={2}>{item.title}</Text>
+            <Text style={styles.reportDate}>
+              {new Date(item.createdAt).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+              })} • {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.severityBadge,
+              { backgroundColor: getSeverityColor(item.severity) + '15' }
+            ]}
+          >
+            <Text style={[styles.badgeText, { color: getSeverityColor(item.severity) }]}>
+              {item.severity}
+            </Text>
+          </View>
         </View>
-        <View style={styles.reportTitleContainer}>
-          <Text style={styles.reportTitle} numberOfLines={2}>{item.title}</Text>
-          <Text style={styles.reportDate}>
-            {new Date(item.createdAt).toLocaleDateString()} • {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.severityBadge,
-            { backgroundColor: getSeverityColor(item.severity) },
-          ]}
-        >
-          <Text style={styles.badgeText}>{item.severity}</Text>
-        </View>
-      </View>
 
-      <Text style={styles.reportDescription} numberOfLines={2}>{item.description}</Text>
+        <Text style={styles.reportDescription} numberOfLines={2}>{item.description}</Text>
 
-      {item.multimedia && item.multimedia.length > 0 && (
-        <View style={styles.mediaIndicator}>
-          <Text style={styles.mediaIcon}>📎</Text>
-          <Text style={styles.mediaText}>{item.multimedia.length} attachment{item.multimedia.length > 1 ? 's' : ''}</Text>
-        </View>
-      )}
+        {item.multimedia && item.multimedia.length > 0 && (
+          <View style={styles.mediaIndicator}>
+            <Ionicons name="attach" size={14} color="#8e8e93" />
+            <Text style={styles.mediaText}>{item.multimedia.length} attachment{item.multimedia.length > 1 ? 's' : ''}</Text>
+          </View>
+        )}
 
-      <View style={styles.reportFooter}>
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: getStatusColor(item.status) },
-          ]}
-        >
-          <Text style={styles.badgeText}>{item.status}</Text>
+        <View style={styles.reportFooter}>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: statusConfig.color + '15' }
+            ]}
+          >
+            <Ionicons name={statusConfig.icon} size={11} color={statusConfig.color} />
+            <Text style={[styles.statusText, { color: statusConfig.color }]}>
+              {statusConfig.label}
+            </Text>
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-        <Text style={styles.loadingText}>Loading your reports...</Text>
+      <View style={styles.loadingContainer}>
+        <View style={[styles.loadingView, { backgroundColor: '#1E3A8A' }]}>
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
       </View>
     );
   }
 
   if (!userEmail) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.loadingText}>Please log in to view history</Text>
+      <View style={styles.container}>
+        <View style={styles.headerContainer}>
+          <View style={[styles.headerView, { backgroundColor: '#1E3A8A' }]}>
+            <View style={styles.headerContent}>
+              <View style={styles.headerLeft}>
+                <Text style={styles.greetingText}>Issue History</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+        <View style={styles.emptyState}>
+          <Ionicons name="person-outline" size={48} color="#c7c7cc" />
+          <Text style={styles.emptyText}>Please log in to view history</Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Issue History</Text>
-        <Text style={styles.headerSubtitle}>Track all your reports and their status</Text>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <View style={styles.headerContainer}>
+        <View style={[styles.headerView, { backgroundColor: '#1E3A8A' }]}>
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.greetingText}>Issue History</Text>
+              <Text style={styles.headerSubtitle}>Track all your reports and their status</Text>
+            </View>
+          </View>
+        </View>
       </View>
 
       <ScrollView
         style={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -220,30 +237,29 @@ export default function HistoryScreen() {
               setRefreshing(true);
               fetchReports(true);
             }}
+            colors={['#1E3A8A']}
           />
         }
       >
-        {/* Statistics Cards */}
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: '#fff' }]}>
             <Text style={styles.statNumber}>{stats.total}</Text>
             <Text style={styles.statLabel}>Total</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: '#f0fdf4' }]}>
             <Text style={[styles.statNumber, { color: '#16a34a' }]}>{stats.resolved}</Text>
             <Text style={styles.statLabel}>Resolved</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: '#f5f5ff' }]}>
             <Text style={[styles.statNumber, { color: '#2563eb' }]}>{stats.inProgress}</Text>
             <Text style={styles.statLabel}>In Progress</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: '#fff7ed' }]}>
             <Text style={[styles.statNumber, { color: '#dc2626' }]}>{stats.pending}</Text>
             <Text style={styles.statLabel}>Pending</Text>
           </View>
         </View>
 
-        {/* Filter Tabs */}
         <View style={styles.filterContainer}>
           {(['ALL', 'PENDING', 'IN_PROGRESS', 'RESOLVED'] as const).map((filter) => (
             <TouchableOpacity
@@ -266,10 +282,9 @@ export default function HistoryScreen() {
           ))}
         </View>
 
-        {/* Reports List */}
         {filteredReports.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📭</Text>
+          <View style={styles.emptyState}>
+            <Ionicons name="document-text-outline" size={48} color="#c7c7cc" />
             <Text style={styles.emptyText}>No {selectedFilter !== 'ALL' ? selectedFilter.toLowerCase() : ''} reports</Text>
             <Text style={styles.emptySubtext}>
               {selectedFilter === 'ALL'
@@ -287,65 +302,80 @@ export default function HistoryScreen() {
           />
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    paddingTop: 24,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
+    backgroundColor: '#f2f2f7',
   },
   content: {
     flex: 1,
   },
-  centerContainer: {
+  headerContainer: {
+    marginBottom: 16,
+  },
+  headerView: {
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  greetingText: {
+    fontSize: 28,
+    color: '#fff',
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+  },
+  loadingView: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6b7280',
-  },
   statsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
   },
   statCard: {
-    width: '50%',
-    padding: 8,
+    width: '48%',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 4,
-    paddingVertical: 12,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#f0f0f5',
   },
   statNumber: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#007AFF',
+    fontWeight: '700',
+    color: '#1a1a2e',
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: '#8e8e93',
+    fontWeight: '500',
     marginTop: 4,
   },
   filterContainer: {
@@ -363,7 +393,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterButtonActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#1E3A8A',
   },
   filterButtonText: {
     fontSize: 13,
@@ -379,72 +409,72 @@ const styles = StyleSheet.create({
   },
   reportCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
+    borderWidth: 1,
+    borderColor: '#f0f0f5',
+    gap: 12,
   },
   reportHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 8,
-    gap: 8,
+    gap: 12,
   },
-  statusIconContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
+  reportCardLeft: {
+    width: 4,
+    height: 40,
+    borderRadius: 2,
+    backgroundColor: '#e5e5ea',
   },
-  statusIcon: {
-    fontSize: 20,
+  statusDot: {
+    width: 4,
+    height: 40,
+    borderRadius: 2,
   },
-  reportTitleContainer: {
+  reportCardContent: {
     flex: 1,
   },
   reportTitle: {
     fontSize: 15,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '600',
+    color: '#1a1a2e',
     lineHeight: 20,
   },
   reportDate: {
     fontSize: 12,
-    color: '#999',
+    color: '#8e8e93',
     marginTop: 2,
   },
   severityBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   badgeText: {
-    color: '#fff',
     fontSize: 11,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   reportDescription: {
     fontSize: 13,
     color: '#666',
-    marginBottom: 8,
     lineHeight: 18,
   },
   mediaIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 6,
+    backgroundColor: '#f8f9fb',
+    borderRadius: 8,
     alignSelf: 'flex-start',
-  },
-  mediaIcon: {
-    fontSize: 14,
   },
   mediaText: {
     fontSize: 12,
-    color: '#666',
+    color: '#8e8e93',
     fontWeight: '500',
   },
   reportFooter: {
@@ -453,11 +483,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
   },
-  emptyContainer: {
+  statusText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -469,7 +506,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#6b7280',
     marginBottom: 8,
   },

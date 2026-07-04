@@ -23,9 +23,9 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === 'light' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerShown: false }}>
         {isSignedIn ? (
-          <Stack.Screen name="(tabs)" options={{ animationEnabled: false }} />
+          <Stack.Screen name="(tabs)" />
         ) : (
-          <Stack.Screen name="(auth)" options={{ animationEnabled: false }} />
+          <Stack.Screen name="(auth)" />
         )}
       </Stack>
       <StatusBar style="auto" />

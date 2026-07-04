@@ -13,6 +13,7 @@ export async function POST() {
   response.cookies.set('adminToken', '', cookieOptions);
   response.cookies.set('adminEmail', '', cookieOptions);
   response.cookies.set('adminRole', '', cookieOptions);
+  response.cookies.set('barangayId', '', cookieOptions);
 
   return response;
 }

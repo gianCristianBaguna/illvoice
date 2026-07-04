@@ -1,7 +1,5 @@
 export type SeverityLevel = 'LOW' | 'MODERATE' | 'HIGH';
 export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'PENDING';
-// 'PENDING' is the value stored in the database; we usually map it to OPEN on the
-// client but the union includes it to avoid type errors if it leaks through.
 
 export interface MediaFile {
   type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'TEXT';
@@ -17,9 +15,9 @@ export interface Complaint {
   severity: SeverityLevel;
   status: ComplaintStatus;
   reportedDate: string;
-  assignedTo?: string;
-  deadline?: string;
-  resolutionNotes?: string;
+  assignedTo?: string | null;
+  deadline?: string | null;
+  resolutionNotes?: string | null;
   category: string;
   userEmail: string;
   userName: string;
@@ -29,23 +27,21 @@ export interface Complaint {
   barangay?: string | null;
   resolvedBy?: string | null;
   resolvedAt?: string | null;
+  isCredible?: boolean;
 }
 
-// Team members are now fetched from the database
-export function getTeamMembers(): string[] {
-  // This will be dynamically populated from the backend
-  return [];
+export interface TeamMember {
+  id: string;
+  name: string | null;
+  email: string;
+  role: 'RESIDENT' | 'BARANGAY_OFFICIAL' | 'ADMIN';
 }
 
-const teamMembers = ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Williams', 'Alex Brown'];
-
-export const teamMemberList = teamMembers;
-
-// Utility helper that works on any array of complaints.
+// Stats calculation helper - works on any array of complaints
 export function getComplaintStats(data: Complaint[]) {
   const total = data.length;
   const byStatus = {
-    OPEN: data.filter(c => c.status === 'OPEN').length,
+    OPEN: data.filter(c => c.status === 'OPEN' || c.status === 'PENDING').length,
     IN_PROGRESS: data.filter(c => c.status === 'IN_PROGRESS').length,
     RESOLVED: data.filter(c => c.status === 'RESOLVED').length,
   };
@@ -58,7 +54,6 @@ export function getComplaintStats(data: Complaint[]) {
   const resolved = byStatus.RESOLVED;
   const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
   
-  // Calculate average resolution time using resolved items
   const resolvedComplaints = data.filter(c => c.status === 'RESOLVED');
   const avgResolutionTime = resolvedComplaints.length > 0 
     ? Math.round(resolvedComplaints.reduce((sum, c) => {

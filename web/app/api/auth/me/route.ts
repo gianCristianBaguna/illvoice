@@ -13,5 +13,6 @@ export async function GET() {
     token,
     email: cookieStore.get('adminEmail')?.value || null,
     role: cookieStore.get('adminRole')?.value || 'ADMIN',
+    barangayId: cookieStore.get('barangayId')?.value || null,
   });
 }

@@ -1,10 +1,110 @@
 import { Router, type Request, type Response } from 'express';
 import { prisma } from '../../prisma';
 import { analyzeSeverity, generateAIInsights } from "../../services/severityAI/index";
+import { applyBarangayScope, getScopedBarangayId, optionalAuth, requireAssignedBarangay, type AuthenticatedRequest } from "../../middleware/auth";
+import { broadcastToUser } from '../../sse';
 
 const router = Router();
+const FALLBACK_BARANGAY_NAME = "Unassigned Barangay";
 
-router.post('/', async (req: Request, res: Response) => {
+async function createNotification(userId: string, title: string, message: string, type: string, reportId?: string) {
+  try {
+    const notification = await prisma.notification.create({
+      data: {
+        userId,
+        title,
+        message,
+        type,
+        reportId,
+      },
+    });
+    
+    // Broadcast to connected SSE clients
+    broadcastToUser(userId, { type: 'new_notification', notification });
+  } catch (err) {
+    console.error('Failed to create notification:', err);
+  }
+}
+
+function getNearestBarangay(latitude: number, longitude: number, barangays: Array<{ id: string; latitude: number; longitude: number }>) {
+  let nearestBarangay: { id: string; latitude: number; longitude: number } | null = null;
+  let minDistance = Infinity;
+
+  for (const barangay of barangays) {
+    const distance = Math.sqrt(
+      Math.pow(latitude - barangay.latitude, 2) + Math.pow(longitude - barangay.longitude, 2)
+    );
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearestBarangay = barangay;
+    }
+  }
+
+  return nearestBarangay;
+}
+
+async function getOrCreateFallbackBarangay(latitude: number, longitude: number) {
+  const existing = await prisma.barangay.findFirst({
+    where: { name: FALLBACK_BARANGAY_NAME },
+  });
+
+  if (existing) return existing;
+
+  return prisma.barangay.create({
+    data: {
+      name: FALLBACK_BARANGAY_NAME,
+      latitude,
+      longitude,
+    },
+  });
+}
+
+async function resolveBarangayForReport(latitude: number | null | undefined, longitude: number | null | undefined) {
+  if (latitude === null || longitude === null || latitude === undefined || longitude === undefined) return null;
+
+  const barangays = await prisma.barangay.findMany({
+    select: {
+      id: true,
+      latitude: true,
+      longitude: true,
+    },
+  });
+
+  if (barangays.length === 0) {
+    return getOrCreateFallbackBarangay(latitude, longitude);
+  }
+
+  return getNearestBarangay(latitude, longitude, barangays);
+}
+
+async function hydrateMissingBarangays<T extends { id: string; latitude: number | null; longitude: number | null; barangayId: string | null }>(reports: T[]): Promise<T[]> {
+  const hydratedReports = [...reports];
+
+  for (const report of hydratedReports) {
+    if (report.barangayId || report.latitude === null || report.longitude === null) continue;
+
+    const barangay = await resolveBarangayForReport(report.latitude, report.longitude);
+    if (!barangay) continue;
+
+    await prisma.report.update({
+      where: { id: report.id },
+      data: { barangayId: barangay.id },
+    });
+
+    report.barangayId = barangay.id;
+  }
+
+  return hydratedReports;
+}
+
+function ensureReportInAssignedBarangay(report: { barangayId: string | null }, req: AuthenticatedRequest) {
+  const scopedBarangayId = getScopedBarangayId(req);
+  if (!scopedBarangayId) return true;
+  return report.barangayId === scopedBarangayId;
+}
+
+router.post('/', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { email, title, description, severity, mediaType, mediaUrl } = req.body;
 
@@ -26,23 +126,24 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    const scopedBarangayId = getScopedBarangayId(req);
+    const reportData: any = {
+      title,
+      description,
+      severity: severity.toUpperCase(),
+      user: { connect: { id: existingUser.id } },
+    };
+    if (scopedBarangayId) reportData.barangayId = scopedBarangayId;
+    if (mediaType && mediaUrl) {
+      reportData.multimedia = {
+        create: {
+          type: mediaType.toUpperCase(),
+          url: mediaUrl,
+        },
+      };
+    }
     const report = await prisma.report.create({
-      data: {
-        title,
-        description,
-        severity: severity.toUpperCase(),
-        user: { connect: { id: existingUser.id } },
-        ...(mediaType && mediaUrl
-          ? {
-              multimedia: {
-                create: {
-                  type: mediaType.toUpperCase(),
-                  url: mediaUrl,
-                },
-              },
-            }
-          : {}),
-      },
+      data: reportData,
       include: {
         user: true,
         multimedia: true,
@@ -65,7 +166,7 @@ router.post('/', async (req: Request, res: Response) => {
 // -------------------------------
 // GET ALL REPORTS
 // -------------------------------
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const reports = await prisma.report.findMany({
       include: {
@@ -79,7 +180,8 @@ router.get('/', async (_req: Request, res: Response) => {
       },
     });
 
-    return res.json(reports);
+    const hydratedReports = await hydrateMissingBarangays(reports);
+    return res.json(applyBarangayScope(hydratedReports, req));
   } catch (err) {
     console.error('❌ REPORT FETCH ERROR:', err);
     return res.status(500).json({
@@ -91,7 +193,7 @@ router.get('/', async (_req: Request, res: Response) => {
 // -------------------------------
 // GET URGENT ALERTS (HIGH severity reports)
 // -------------------------------
-router.get('/urgent', async (_req: Request, res: Response) => {
+router.get('/urgent', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const urgentReports = await prisma.report.findMany({
       where: {
@@ -107,7 +209,10 @@ router.get('/urgent', async (_req: Request, res: Response) => {
       take: 10,
     });
 
-    const alerts = urgentReports.map(r => ({
+    const hydratedReports: any[] = await hydrateMissingBarangays(urgentReports);
+    const scopedReports = applyBarangayScope(hydratedReports, req);
+
+    const alerts = scopedReports.map(r => ({
       id: r.id,
       title: r.title,
       description: r.description,
@@ -129,7 +234,7 @@ router.get('/urgent', async (_req: Request, res: Response) => {
 // -------------------------------
 // GET ACTIVITY FEED
 // -------------------------------
-router.get('/activity', async (_req: Request, res: Response) => {
+router.get('/activity', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -152,9 +257,13 @@ router.get('/activity', async (_req: Request, res: Response) => {
       take: 20,
     });
 
+    const hydratedReports = await hydrateMissingBarangays(reports);
+    const scopedReports = applyBarangayScope(hydratedReports, req);
+    const scopedBarangayId = getScopedBarangayId(req);
     const recentUsers = await prisma.user.findMany({
       where: {
         createdAt: { gte: today },
+        ...(scopedBarangayId ? { barangayId: scopedBarangayId } : {}),
       },
       orderBy: {
         createdAt: 'desc',
@@ -164,7 +273,7 @@ router.get('/activity', async (_req: Request, res: Response) => {
 
     const activities: any[] = [];
 
-    reports.forEach((r: any) => {
+    scopedReports.forEach((r: any) => {
       const timestamp = r.createdAt;
       const time = new Date(timestamp).toLocaleTimeString('en-US', {
         hour: 'numeric',
@@ -259,7 +368,7 @@ router.get('/activity', async (_req: Request, res: Response) => {
 // -------------------------------
 // RESOLVE REPORT
 // -------------------------------
-router.post('/:id/resolve', async (req: Request, res: Response) => {
+router.post('/:id/resolve', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   const idParam = req.params.id;
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const { resolvedByName } = req.body;
@@ -271,9 +380,31 @@ router.post('/:id/resolve', async (req: Request, res: Response) => {
   }
 
   try {
+    const report = await prisma.report.findUnique({
+      where: { id },
+      select: { barangayId: true },
+    });
+
+    if (!report) {
+      return res.status(404).json({
+        error: 'Report not found',
+      });
+    }
+
+    if (!ensureReportInAssignedBarangay(report, req)) {
+      return res.status(403).json({
+        error: 'You can only manage reports from your assigned barangay',
+      });
+    }
+
     const adminUser = resolvedByName
       ? await prisma.user.findFirst({ where: { name: resolvedByName } })
       : null;
+
+    const existingReport = await prisma.report.findUnique({
+      where: { id },
+      select: { userId: true, title: true },
+    });
 
     const updated = await prisma.report.update({
       where: { id },
@@ -289,6 +420,16 @@ router.post('/:id/resolve', async (req: Request, res: Response) => {
         resolvedBy: true,
       },
     });
+
+    if (existingReport?.userId) {
+      await createNotification(
+        existingReport.userId,
+        'Report Resolved',
+        `Your report "${existingReport.title}" has been marked as resolved.`,
+        'STATUS_UPDATE',
+        updated.id
+      );
+    }
 
     return res.json({
       message: 'Report resolved',
@@ -312,13 +453,11 @@ router.post('/:id/resolve', async (req: Request, res: Response) => {
 // -------------------------------
 // UPDATE REPORT
 // -------------------------------
-router.patch('/:id', async (req: Request, res: Response) => {
+router.patch('/:id', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   const idParam = req.params.id;
-
-  // Fix TypeScript issue
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
-
-  const { status, severity, resolvedByName } = req.body;
+  const { status, severity, resolvedByName, assignedTo, deadline, resolutionNotes, isCredible } = req.body;
+  const normalizedStatus = status ? (status === 'OPEN' ? 'PENDING' : status.toUpperCase()) : undefined;
 
   if (!id) {
     return res.status(400).json({
@@ -327,17 +466,38 @@ router.patch('/:id', async (req: Request, res: Response) => {
   }
 
   try {
+    const report = await prisma.report.findUnique({
+      where: { id },
+      select: { barangayId: true, userId: true },
+    });
+
+    if (!report) {
+      return res.status(404).json({
+        error: 'Report not found',
+      });
+    }
+
+    if (!ensureReportInAssignedBarangay(report, req)) {
+      return res.status(403).json({
+        error: 'You can only manage reports from your assigned barangay',
+      });
+    }
+
     const resolvedById = resolvedByName
-      ? await prisma.user.findFirst({ where: { name: resolvedByName } }).then(u => u?.id)
+      ? await prisma.user.findFirst({ where: { name: resolvedByName } }).then((user: { id: string } | null) => user?.id)
       : undefined;
 
     const updated = await prisma.report.update({
       where: { id },
       data: {
-        ...(status && { status: status.toUpperCase() }),
+        ...(normalizedStatus && { status: normalizedStatus }),
         ...(severity && { severity: severity.toUpperCase() }),
-        ...(status === 'RESOLVED' && resolvedById && { resolvedBy: { connect: { id: resolvedById } } }),
-        ...(status === 'RESOLVED' && { resolvedAt: new Date() }),
+        ...(assignedTo !== undefined && { assignedTo }),
+        ...(deadline && { deadline: new Date(deadline) }),
+        ...(resolutionNotes !== undefined && { resolutionNotes }),
+        ...(isCredible !== undefined && { isCredible }),
+        ...(normalizedStatus === 'RESOLVED' && resolvedById && { resolvedBy: { connect: { id: resolvedById } } }),
+        ...(normalizedStatus === 'RESOLVED' && { resolvedAt: new Date() }),
       },
       include: {
         user: true,
@@ -346,6 +506,43 @@ router.patch('/:id', async (req: Request, res: Response) => {
         resolvedBy: true,
       },
     });
+
+    // Recalculate user credibility if isCredible was updated
+    if (isCredible !== undefined && report.userId) {
+      const userReports = await prisma.report.findMany({
+        where: { userId: report.userId },
+        select: { status: true, isCredible: true },
+      });
+      const userResolved = userReports.filter((r) => r.status === "RESOLVED");
+      const userCredible = userResolved.filter((r) => r.isCredible);
+      const newCredibility = userReports.length > 0 && userResolved.length > 0
+        ? Math.round((userCredible.length / userResolved.length) * 100)
+        : 0;
+
+      await prisma.user.update({
+        where: { id: report.userId },
+        data: { credibility: newCredibility },
+      });
+
+      await createNotification(
+        report.userId,
+        'Credibility Updated',
+        `Your credibility score is now ${newCredibility}% based on ${userCredible.length} credible report${userCredible.length !== 1 ? 's' : ''} out of ${userResolved.length} resolved.`,
+        'CREDIBILITY_UPDATE',
+        updated.id
+      );
+    }
+
+    if (normalizedStatus && report.userId) {
+      const statusLabel = normalizedStatus === 'IN_PROGRESS' ? 'In Progress' : normalizedStatus === 'RESOLVED' ? 'Resolved' : 'Pending';
+      await createNotification(
+        report.userId,
+        'Report Status Updated',
+        `Your report "${updated.title}" has been updated to ${statusLabel}.`,
+        'STATUS_UPDATE',
+        updated.id
+      );
+    }
 
     return res.json({
       message: 'Report updated',
@@ -369,7 +566,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
 // -------------------------------
 // AI ANALYSIS
 // -------------------------------
-router.post('/:id/analyze', async (req: Request, res: Response) => {
+router.post('/:id/analyze', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   const idParam = req.params.id;
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
 

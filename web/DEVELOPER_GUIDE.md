@@ -339,17 +339,17 @@ export const mockComplaints: Complaint[] = [
 
 **getComplaintStats()**:
 ```typescript
-export function getComplaintStats() {
-  const total = mockComplaints.length;
+export function getComplaintStats(data: Complaint[]) {
+  const total = data.length;
   const byStatus = {
-    OPEN: mockComplaints.filter(c => c.status === 'OPEN').length,
-    IN_PROGRESS: mockComplaints.filter(c => c.status === 'IN_PROGRESS').length,
-    RESOLVED: mockComplaints.filter(c => c.status === 'RESOLVED').length,
+    OPEN: data.filter(c => c.status === 'OPEN' || c.status === 'PENDING').length,
+    IN_PROGRESS: data.filter(c => c.status === 'IN_PROGRESS').length,
+    RESOLVED: data.filter(c => c.status === 'RESOLVED').length,
   };
   const bySeverity = {
-    HIGH: mockComplaints.filter(c => c.severity === 'HIGH').length,
-    MODERATE: mockComplaints.filter(c => c.severity === 'MODERATE').length,
-    LOW: mockComplaints.filter(c => c.severity === 'LOW').length,
+    HIGH: data.filter(c => c.severity === 'HIGH').length,
+    MODERATE: data.filter(c => c.severity === 'MODERATE').length,
+    LOW: data.filter(c => c.severity === 'LOW').length,
   };
   // ... calculate resolution rate
   return { total, byStatus, bySeverity, resolutionRate, avgResolutionTime };
@@ -358,13 +358,15 @@ export function getComplaintStats() {
 
 **getComplaintsTrend()**:
 ```typescript
-export function getComplaintsTrend() {
+export function getComplaintsTrend(data: Complaint[]) {
   const trend = [];
   for (let i = 6; i >= 0; i--) {
     const date = new Date();
     date.setDate(date.getDate() - i);
-    const count = mockComplaints.filter(c => {
-      // Count complaints for this date
+    const dateStr = date.toISOString().split('T')[0];
+    const count = data.filter(c => {
+      const cDate = new Date(c.reportedDate).toISOString().split('T')[0];
+      return cDate === dateStr;
     }).length;
     trend.push({ date, complaints: count });
   }
@@ -377,7 +379,9 @@ export function getComplaintsTrend() {
 ```
 page.tsx (state holder)
     ↓
-useState<Complaint[]>(mockComplaints)
+useState<Complaint[]>([])
+    ↓
+fetchComplaints() API call on mount
     ↓
 Pass complaints prop to ComplaintsTable
     ↓

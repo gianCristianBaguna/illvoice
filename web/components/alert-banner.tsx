@@ -4,7 +4,11 @@ import { AlertTriangle, MapPin } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { fetchUrgentAlerts, AlertItem } from '@/lib/api'
 
-export function AlertBanner() {
+export interface AlertBannerProps {
+  onViewUrgent?: () => void;
+}
+
+export function AlertBanner({ onViewUrgent }: AlertBannerProps = {}) {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,7 +63,10 @@ export function AlertBanner() {
           </p>
         </div>
       </div>
-      <button className="px-4 py-1.5 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 whitespace-nowrap flex-shrink-0">
+      <button 
+        onClick={onViewUrgent}
+        className="px-4 py-1.5 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 whitespace-nowrap flex-shrink-0"
+      >
         View Urgent
       </button>
     </div>

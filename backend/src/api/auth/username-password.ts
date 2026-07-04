@@ -6,6 +6,21 @@ import { prisma } from '../../prisma';
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
 
+function signUserToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null }) {
+  return jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      barangayId: user.barangayId,
+      barangayName: user.barangayName || null,
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
 const AUTHORIZED_ADMINS = [
   'usernamenigian@gmail.com',
   'admin@barangay.gov',
@@ -50,11 +65,13 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
 
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, name: user.name, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = signUserToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      barangayId: user.barangayId,
+    });
 
     return res.status(201).json({
       user: {
@@ -82,6 +99,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { email },
+      include: { barangay: true },
     });
 
     if (!user) {
@@ -104,11 +122,14 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, name: user.name, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = signUserToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      barangayId: user.barangayId,
+      barangayName: user.barangay?.name || null,
+    });
 
     return res.json({
       user: {
@@ -117,6 +138,8 @@ router.post('/login', async (req: Request, res: Response) => {
         name: user.name,
         phoneNumber: user.phoneNumber,
         authMethod: user.authMethod,
+        barangayId: user.barangayId,
+        barangayName: user.barangay?.name || null,
       },
       token,
     });

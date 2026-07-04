@@ -4,14 +4,29 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../../prisma';
 
 const router = Router();
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
+const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
 const AUTHORIZED_ADMINS = [
   'usernamenigian@gmail.com',
   'admin@barangay.gov',
   'admin@demo.gov',
   process.env.AUTHORIZED_ADMIN_EMAIL || 'admin@illvoice.local',
 ];
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+function signAdminToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null }) {
+  return jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      barangayId: user.barangayId,
+      barangayName: user.barangayName || null,
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
 
 router.post('/google-signin', async (req: Request, res: Response) => {
   try {
@@ -42,7 +57,7 @@ router.post('/google-signin', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Unauthorized admin email' });
     }
 
-    let user = await prisma.user.findUnique({ where: { email } });
+    let user = await prisma.user.findUnique({ where: { email }, include: { barangay: true } });
     let userRole: string = 'ADMIN';
 
     if (user) {
@@ -56,21 +71,27 @@ router.post('/google-signin', async (req: Request, res: Response) => {
           googleEmail: email,
           role: 'ADMIN',
         },
+        include: { barangay: true },
       });
       userRole = 'ADMIN';
     }
 
-    const adminToken = jwt.sign(
-      { email, name: name || email, role: userRole },
-      process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6',
-      { expiresIn: '7d' }
-    );
+    const adminToken = signAdminToken({
+      id: user.id,
+      email,
+      name: user.name,
+      role: userRole,
+      barangayId: user.barangayId,
+      barangayName: user.barangay?.name || null,
+    });
 
     return res.status(200).json({
       token: adminToken,
       email,
       name: name || email,
       role: userRole,
+      barangayId: user.barangayId,
+      barangayName: user.barangay?.name || null,
       message: 'Google sign-in successful',
     });
   } catch (error: any) {

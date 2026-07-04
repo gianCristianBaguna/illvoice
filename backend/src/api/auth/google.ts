@@ -4,9 +4,23 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../../prisma';
 
 const router = Router();
+const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
 const primaryClientId = process.env.GOOGLE_CLIENT_ID;
 const fallbackClientId = process.env.GOOGLE_IOS_CLIENT_ID;
-const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
+function signUserToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null }) {
+  return jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      barangayId: user.barangayId,
+      barangayName: user.barangayName || null,
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
 
 console.log("=== Google Auth Module Loaded ===");
 console.log("Primary GOOGLE_CLIENT_ID:", primaryClientId);

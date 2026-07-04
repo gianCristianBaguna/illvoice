@@ -5,10 +5,39 @@ const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef45
 
 export interface AuthenticatedRequest extends Request {
   user?: {
-    userId: string;
+    userId?: string;
     email: string;
-    name: string;
+    name: string | null;
     role: string;
+    barangayId?: string | null;
+    barangayName?: string | null;
+  };
+}
+
+export function isBarangayOfficial(user: AuthenticatedRequest['user']) {
+  return user?.role === 'BARANGAY_OFFICIAL';
+}
+
+export function getScopedBarangayId(req: AuthenticatedRequest): string | null {
+  const user = req.user;
+  if (!user) return null;
+  if (user.role !== 'BARANGAY_OFFICIAL') return null;
+  return user.barangayId || null;
+}
+
+export function applyBarangayScope<T extends { barangayId: string | null }>(items: T[], req: AuthenticatedRequest): T[] {
+  const barangayId = getScopedBarangayId(req);
+  if (!barangayId) return items;
+  return items.filter((item) => item.barangayId === barangayId);
+}
+
+export function requireAssignedBarangay() {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const user = req.user;
+    if (user?.role === 'BARANGAY_OFFICIAL' && !user.barangayId) {
+      return res.status(403).json({ error: 'Barangay assignment is required for this account' });
+    }
+    next();
   };
 }
 

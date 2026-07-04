@@ -1,10 +1,43 @@
 'use client'
 
 import { useState } from 'react'
-import { LayoutDashboard, BarChart3, MapPin, Users, Settings, MoreVertical, Menu, X } from 'lucide-react'
+import { LayoutDashboard, BarChart3, MapPin, Settings, MoreVertical, Menu, X } from 'lucide-react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useAuth } from '@/contexts/auth-context'
+
+const navItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+  { href: '/reports', label: 'Reports', icon: <BarChart3 size={18} /> },
+  { href: '/map', label: 'Map View', icon: <MapPin size={18} /> },
+]
+
+function getLinkClasses(isActive: boolean) {
+  return `flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+    isActive
+      ? 'bg-blue-600 text-white font-medium'
+      : 'text-slate-300 hover:bg-slate-800'
+  }`
+}
 
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false)
+  const pathname = usePathname()
+  const { adminRole } = useAuth()
+
+  const barangayItems = adminRole === 'BARANGAY_OFFICIAL'
+    ? [
+        { href: '/barangay-dashboard', label: 'My Dashboard', icon: <LayoutDashboard size={18} /> },
+        { href: '/reports', label: 'Reports', icon: <BarChart3 size={18} /> },
+        { href: '/map', label: 'Map View', icon: <MapPin size={18} /> },
+      ]
+    : []
+
+  const systemItems = [
+    { href: '/analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
+    { href: '/barangays', label: 'Barangays', icon: <MapPin size={18} /> },
+    { href: '/settings', label: 'Settings', icon: <Settings size={18} /> },
+  ]
 
   return (
     <>
@@ -41,49 +74,79 @@ export function Sidebar() {
         <div className="mb-8">
           <p className="text-xs font-semibold text-slate-400 uppercase mb-3">Main</p>
           <nav className="space-y-2">
-            <a href="/dashboard" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium">
-              <LayoutDashboard size={18} />
-              Dashboard
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm">
-              <BarChart3 size={18} />
-              Reports
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm">
-              <MapPin size={18} />
-              Map View
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm">
-              <Users size={18} />
-              Users
-            </a>
+            {(adminRole === 'BARANGAY_OFFICIAL' ? barangayItems : navItems).map((item) => {
+              const isActive = item.href !== '#' && pathname.startsWith(item.href)
+
+              return item.href === '#' ? (
+                <button
+                  key={item.label}
+                  type="button"
+                  className={getLinkClasses(false)}
+                >
+                  {item.icon}
+                  {item.label}
+                </button>
+              ) : (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={getLinkClasses(isActive)}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => setIsOpen(false)}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              )
+            })}
           </nav>
         </div>
 
-        {/* System Menu */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase mb-3">System</p>
-          <nav className="space-y-2">
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm">
-              <BarChart3 size={18} />
-              Analytics
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-sm">
-              <Settings size={18} />
-              Settings
-            </a>
-          </nav>
-        </div>
+        {/* System Menu - only for ADMIN role */}
+        {adminRole === 'ADMIN' && (
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase mb-3">System</p>
+            <nav className="space-y-2">
+              {systemItems.map((item) => {
+                const isActive = item.href !== '#' && pathname.startsWith(item.href)
+
+                return item.href === '#' ? (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={getLinkClasses(false)}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                ) : (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={getLinkClasses(isActive)}
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={() => setIsOpen(false)}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </nav>
+          </div>
+        )}
 
         {/* User Profile */}
         <div className="mt-auto pt-6 border-t border-slate-800">
           <div className="flex items-center gap-3 p-2">
             <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-              JD
+              {adminRole === 'BARANGAY_OFFICIAL' ? 'BO' : 'JD'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">Juan Data Cruz</p>
-              <p className="text-xs text-slate-400 truncate">Super Admin</p>
+              <p className="text-sm font-medium truncate">{adminRole === 'BARANGAY_OFFICIAL' ? 'Barangay Official' : 'Juan Data Cruz'}</p>
+              <p className="text-xs text-slate-400 truncate">
+                {adminRole === 'BARANGAY_OFFICIAL' ? 'Barangay Admin' : 'Super Admin'}
+              </p>
             </div>
             <button className="p-1 hover:bg-slate-800 rounded">
               <MoreVertical size={16} className="text-slate-400" />

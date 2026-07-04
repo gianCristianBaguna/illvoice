@@ -4,6 +4,7 @@ import React, { createContext, ReactNode, useContext, useEffect, useState } from
 interface AuthContextType {
   userEmail: string | null;
   userName: string | null;
+  userPhoto: string | null;
   userPhone: string | null;
   idToken: string | null;
   authMethod: 'GOOGLE' | 'USERNAME_PASSWORD' | null;
@@ -11,6 +12,7 @@ interface AuthContextType {
   isSignedIn: boolean;
   setUserEmail: (email: string) => void;
   setUserName: (name: string) => void;
+  setUserPhoto: (photo: string | null) => void;
   setUserPhone: (phone: string | null) => void;
   setIdToken: (token: string | null) => void;
   setAuthMethod: (method: 'GOOGLE' | 'USERNAME_PASSWORD') => void;
@@ -23,6 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const [userPhone, setUserPhone] = useState<string | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
   const [authMethod, setAuthMethod] = useState<'GOOGLE' | 'USERNAME_PASSWORD' | null>(null);
@@ -37,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const storedEmail = await AsyncStorage.getItem('userEmail');
       const storedName = await AsyncStorage.getItem('userName');
+      const storedPhoto = await AsyncStorage.getItem('userPhoto');
       const storedPhone = await AsyncStorage.getItem('userPhone');
       const storedToken = await AsyncStorage.getItem('idToken');
       const storedMethod = (await AsyncStorage.getItem('authMethod')) as 'GOOGLE' | 'USERNAME_PASSWORD' | null;
@@ -44,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (storedEmail && storedName) {
         setUserEmail(storedEmail);
         setUserName(storedName);
+        storedPhoto && setUserPhoto(storedPhoto);
         storedPhone && setUserPhone(storedPhone);
         storedToken && setIdToken(storedToken);
         storedMethod && setAuthMethod(storedMethod);
@@ -63,6 +68,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleSetUserName = (name: string) => {
     setUserName(name);
     AsyncStorage.setItem('userName', name).catch(e => console.error('Failed to save name:', e));
+  };
+
+  const handleSetUserPhoto = (photo: string | null) => {
+    setUserPhoto(photo);
+    if (photo) {
+      AsyncStorage.setItem('userPhoto', photo).catch(e => console.error('Failed to save photo:', e));
+    } else {
+      AsyncStorage.removeItem('userPhoto').catch(e => console.error('Failed to remove photo:', e));
+    }
   };
 
   const handleSetUserPhone = (phone: string | null) => {
@@ -91,11 +105,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     setUserEmail(null);
     setUserName(null);
+    setUserPhoto(null);
     setUserPhone(null);
     setIdToken(null);
     setAuthMethod(null);
     try {
-      await AsyncStorage.multiRemove(['userEmail', 'userName', 'userPhone', 'idToken', 'authMethod']);
+      await AsyncStorage.multiRemove(['userEmail', 'userName', 'userPhoto', 'userPhone', 'idToken', 'authMethod']);
     } catch (e) {
       console.error('Failed to clear storage:', e);
     }
@@ -108,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{ 
         userEmail, 
         userName,
+        userPhoto,
         userPhone,
         idToken,
         authMethod,
@@ -115,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isSignedIn,
         setUserEmail: handleSetUserEmail, 
         setUserName: handleSetUserName,
+        setUserPhoto: handleSetUserPhoto,
         setUserPhone: handleSetUserPhone,
         setIdToken: handleSetIdToken,
         setAuthMethod: handleSetAuthMethod,
