@@ -61,5 +61,14 @@
     "expo-module-scripts": "^56.0.3",
     "typescript": "~5.9.2"
   },
+  "overrides": {
+    "semver": "7.7.4",
+    "react-native-reanimated": {
+      "semver": "7.7.4"
+    },
+    "react-native-worklets": {
+      "semver": "7.7.4"
+    }
+  },
   "private": true
 }
