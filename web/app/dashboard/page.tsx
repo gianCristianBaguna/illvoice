@@ -111,9 +111,6 @@ export default function DashboardPage() {
               <ResolutionRateChart complaints={complaints} />
             </div>
 
-            {/* Similar Issue Clusters */}
-            <IssueClusters complaints={complaints} onViewComplaint={handleViewComplaint} />
-
             {/* Complaints Table + Activity Feed */}
             <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3">
               <div className="lg:col-span-2">
@@ -127,6 +124,9 @@ export default function DashboardPage() {
                 <ActivityFeed />
               </div>
             </div>
+
+            {/* Similar Issue Clusters (only groups with 2+ related reports) */}
+            <IssueClusters complaints={complaints} minClusterSize={2} onViewComplaint={handleViewComplaint} />
           </div>
         </main>
       </div>

@@ -23,7 +23,15 @@ function getLinkClasses(isActive: boolean) {
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false)
   const pathname = usePathname()
-  const { adminRole } = useAuth()
+  const { adminRole, adminName, adminEmail } = useAuth()
+
+  const displayName = adminName || adminEmail || 'Admin User'
+  const initials = (adminName || adminEmail || 'A')
+    .split(/[\s@._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join('') || 'A'
 
   const barangayItems = adminRole === 'BARANGAY_OFFICIAL'
     ? [
@@ -64,9 +72,11 @@ export function Sidebar() {
       >
         {/* Logo */}
         <div className="flex items-center gap-2 mb-8">
-          <div className="w-6 h-6 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-            I
-          </div>
+          <img
+            src="/LoginLogo.png"
+            alt="ILLVoice logo"
+            className="h-8 w-auto object-contain"
+          />
           <span className="font-semibold text-sm">ILLVoice</span>
         </div>
 
@@ -140,12 +150,12 @@ export function Sidebar() {
         <div className="mt-auto pt-6 border-t border-slate-800">
           <div className="flex items-center gap-3 p-2">
             <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-              {adminRole === 'BARANGAY_OFFICIAL' ? 'BO' : 'JD'}
+              {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{adminRole === 'BARANGAY_OFFICIAL' ? 'Barangay Official' : 'Juan Data Cruz'}</p>
+              <p className="text-sm font-medium truncate">{displayName}</p>
               <p className="text-xs text-slate-400 truncate">
-                {adminRole === 'BARANGAY_OFFICIAL' ? 'Barangay Admin' : 'Super Admin'}
+                {adminRole === 'BARANGAY_OFFICIAL' ? 'Barangay Official' : 'Super Admin'}
               </p>
             </div>
             <button className="p-1 hover:bg-slate-800 rounded">

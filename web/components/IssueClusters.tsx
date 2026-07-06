@@ -119,12 +119,17 @@ function ClusterCard({
 
 export function IssueClusters({
   complaints,
+  minClusterSize = 1,
   onViewComplaint,
 }: {
   complaints: Complaint[];
+  minClusterSize?: number;
   onViewComplaint?: (c: Complaint) => void;
 }) {
-  const clusters = useMemo(() => clusterComplaints(complaints), [complaints]);
+  const clusters = useMemo(
+    () => clusterComplaints(complaints, { minClusterSize }),
+    [complaints, minClusterSize]
+  );
   const recurringCount = clusters.filter((c) => c.recurring).length;
 
   return (
@@ -151,7 +156,9 @@ export function IssueClusters({
       <div className="px-4 pb-4 md:px-6 md:pb-6">
         {clusters.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-400">
-            No reports available to cluster.
+            {minClusterSize > 1
+              ? 'No similar issue clusters found yet.'
+              : 'No reports available to cluster.'}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">

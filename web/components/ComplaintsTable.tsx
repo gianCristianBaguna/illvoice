@@ -155,9 +155,9 @@ export function ComplaintsTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="max-h-[360px] overflow-auto">
         <table className="w-full">
-          <thead className="bg-white border-b border-slate-200">
+          <thead className="bg-white border-b border-slate-200 sticky top-0 z-10">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">ID</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">TYPE</th>

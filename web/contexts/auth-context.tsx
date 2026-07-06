@@ -6,6 +6,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   adminEmail: string | null;
+  adminName: string | null;
   adminToken: string | null;
   adminRole: 'ADMIN' | 'BARANGAY_OFFICIAL' | null;
   barangayId: string | null;
@@ -16,9 +17,28 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Decode the JWT payload (no verification needed for display) to read the user's name.
+function decodeJwtName(token: string | null): string | null {
+  if (!token || typeof window === 'undefined') return null;
+  try {
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(payload)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const data = JSON.parse(json);
+    return data.name || null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
+  const [adminName, setAdminName] = useState<string | null>(null);
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [adminRole, setAdminRole] = useState<'ADMIN' | 'BARANGAY_OFFICIAL' | null>(null);
   const [barangayId, setBarangayId] = useState<string | null>(null);
@@ -32,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const data = await res.json();
           setAdminToken(data.token);
           setAdminEmail(data.email);
+          setAdminName(decodeJwtName(data.token));
           setAdminRole((data.role as 'ADMIN' | 'BARANGAY_OFFICIAL') || 'ADMIN');
           setBarangayId(data.barangayId || null);
           if (typeof window !== 'undefined' && data.token) {
@@ -52,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (token: string, email: string, role?: string, barangayId?: string) => {
     setAdminToken(token);
     setAdminEmail(email);
+    setAdminName(decodeJwtName(token));
     setAdminRole((role as 'ADMIN' | 'BARANGAY_OFFICIAL') || 'ADMIN');
     setBarangayId(barangayId || null);
     setIsAuthenticated(true);
@@ -66,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setAdminToken(null);
     setAdminEmail(null);
+    setAdminName(null);
     setAdminRole(null);
     setBarangayId(null);
     setIsAuthenticated(false);
@@ -89,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, adminEmail, adminToken, adminRole, barangayId, login, logout, hasRole, loading }}>
+    <AuthContext.Provider value={{ isAuthenticated, adminEmail, adminName, adminToken, adminRole, barangayId, login, logout, hasRole, loading }}>
       {children}
     </AuthContext.Provider>
   );
