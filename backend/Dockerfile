@@ -7,6 +7,8 @@ RUN npm install
 
 COPY prisma.config.ts ./
 COPY prisma ./prisma
+ARG DATABASE_URL=dummy
+ENV DATABASE_URL=${DATABASE_URL}
 RUN npx prisma generate
 
 COPY tsconfig.json ./
