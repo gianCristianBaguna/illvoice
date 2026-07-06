@@ -1,6 +1,7 @@
 'use client';
 
 import { ComplaintsByHazardChart, ComplaintsByMonthChart, ResolutionRateChart } from '@/components/dashboard-charts';
+import { IssueClusters } from '@/components/IssueClusters';
 import { ComplaintsTable } from '@/components/ComplaintsTable';
 import { AlertBanner } from '@/components/alert-banner';
 import { ActivityFeed } from '@/components/activity-feed';
@@ -109,6 +110,9 @@ export default function DashboardPage() {
               <ComplaintsByMonthChart complaints={complaints} />
               <ResolutionRateChart complaints={complaints} />
             </div>
+
+            {/* Similar Issue Clusters */}
+            <IssueClusters complaints={complaints} onViewComplaint={handleViewComplaint} />
 
             {/* Complaints Table + Activity Feed */}
             <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3">
