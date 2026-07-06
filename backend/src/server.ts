@@ -23,9 +23,7 @@ app.use(
     origin: (origin, callback) => {
       const allowedOrigins = [
         "http://localhost:3000",
-        "http://localhost:3001",
-        "http://192.168.5.235:4000",
-        "http://192.168.5.235:8081",
+        "http://localhost:8081",
         "https://illvoice-production.up.railway.app",
       ];
 
