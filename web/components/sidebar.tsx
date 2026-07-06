@@ -152,7 +152,7 @@ export function Sidebar() {
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{displayName}</p>
+              <p className="text-base font-semibold text-white truncate">{displayName}</p>
               <p className="text-xs text-slate-400 truncate">
                 {adminRole === 'BARANGAY_OFFICIAL' ? 'Barangay Official' : 'Super Admin'}
               </p>
