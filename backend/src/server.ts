@@ -20,7 +20,21 @@ console.log("OpenAI API Key configured:", !!process.env.OPENAI_API_KEY);
 const app = express();
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://192.168.5.235:4000", "http://192.168.5.235:8081"],
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://192.168.5.235:4000",
+        "http://192.168.5.235:8081",
+        "https://illvoice-production.up.railway.app",
+      ];
+
+      if (!origin || allowedOrigins.includes(origin) || /https:\/\/.*\.vercel\.app$/i.test(origin) || /https:\/\/.*\.vercel\.dev$/i.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );

@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
   try {
     const { email, password, role } = await request.json();
 
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://192.168.5.235:4000';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'https://illvoice-production.up.railway.app';
     const response = await fetch(`${backendUrl}/api/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
