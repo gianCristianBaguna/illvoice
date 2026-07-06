@@ -1,19 +1,20 @@
-
 import { useAuth } from '@/contexts/auth-context';
+import { BACKEND_URL } from '@/config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Button,
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,22 +27,15 @@ GoogleSignin.configure({
   profileImageSize: 120,
 });
 
-const BACKEND_URL = "http://192.168.254.111:4000";
-
 export default function LoginScreen() {
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
-  const [signupFullName, setSignupFullName] = useState('');
-  const [signupPhoneNumber, setSignupPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { setUserEmail, setUserName, setUserPhone, setIdToken, setAuthMethod } = useAuth();
+  const { setUserEmail, setUserName, setUserPhoto, setUserPhone, setIdToken, setAuthMethod } = useAuth();
 
-  // Google Sign-In Handler
   const handleGoogleSignin = async () => {
     if (isLoading) return;
     setIsLoading(true);
@@ -54,6 +48,7 @@ export default function LoginScreen() {
         const { idToken } = response.data;
         const userEmail = response.data.user.email;
         const userName = response.data.user.name;
+        const userPhoto = response.data.user.photo;
 
         try {
           const backendResponse = await fetch(`${BACKEND_URL}/api/auth/google`, {
@@ -61,21 +56,29 @@ export default function LoginScreen() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ idToken }),
           });
-          
+
           const result = await backendResponse.json();
 
           if (backendResponse.ok) {
             console.log("Google authentication successful:", result.user);
             setUserEmail(userEmail);
             setUserName(userName);
-            setIdToken(idToken);
+            userPhoto && setUserPhoto(userPhoto);
+            setIdToken(result.token);
             setAuthMethod('GOOGLE');
+            await AsyncStorage.multiSet([
+              ['idToken', result.token],
+              ['userEmail', userEmail],
+              ['userName', userName || ''],
+              ['userPhoto', userPhoto || ''],
+              ['authMethod', 'GOOGLE'],
+            ]);
             router.replace('/(tabs)/Dashboard');
           } else {
             console.log("Google auth failed:", backendResponse.status, result);
             Alert.alert('Error', result.error || 'Google authentication failed');
           }
-        } catch (fetchError) {
+        } catch (error) {
           Alert.alert('Error', `Network error. Make sure backend is running on ${BACKEND_URL}`);
         }
       }
@@ -86,9 +89,8 @@ export default function LoginScreen() {
     }
   };
 
-  // Username/Password Login Handler
   const handleEmailLogin = async () => {
-    if (!loginEmail.trim() || !loginPassword.trim()) {
+    if (!email.trim() || !password.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -100,77 +102,35 @@ export default function LoginScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: loginEmail,
-          password: loginPassword,
+          email,
+          password,
         }),
       });
 
       const result = await response.json();
 
-      if (response.ok) {
-        const user = result.user;
-        setUserEmail(user.email);
-        setUserName(user.name);
-        setUserPhone(user.phoneNumber || '');
-        setAuthMethod('USERNAME_PASSWORD');
-        setLoginEmail('');
-        setLoginPassword('');
-        router.replace('/(tabs)/Dashboard');
+        if (response.ok) {
+          if (result.token) {
+            setUserEmail(result.user.email);
+            setUserName(result.user.name);
+            setUserPhone(result.user.phoneNumber || null);
+            setIdToken(result.token);
+            setAuthMethod('USERNAME_PASSWORD');
+            await AsyncStorage.multiSet([
+              ['idToken', result.token],
+              ['userEmail', result.user.email],
+              ['userName', result.user.name || ''],
+              ['phoneNumber', result.user.phoneNumber || ''],
+              ['authMethod', 'USERNAME_PASSWORD'],
+            ]);
+            setEmail('');
+            setPassword('');
+            router.replace('/(tabs)/Dashboard');
+          } else {
+          Alert.alert('Error', 'No authentication token received');
+        }
       } else {
         Alert.alert('Login Failed', result.error || 'Invalid credentials');
-      }
-    } catch (error) {
-      Alert.alert('Error', `Network error: ${error}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Sign Up Handler
-  const handleSignUp = async () => {
-    if (!signupEmail.trim() || !signupPassword.trim() || !signupFullName.trim() || !signupPhoneNumber.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
-    if (signupPassword !== signupConfirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (signupPassword.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: signupEmail,
-          password: signupPassword,
-          fullName: signupFullName,
-          phoneNumber: signupPhoneNumber,
-          username: signupEmail, // Using email as username
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        Alert.alert('Success', 'Account created! Please log in.');
-        setActiveTab('login');
-        setLoginEmail(signupEmail);
-        setSignupEmail('');
-        setSignupPassword('');
-        setSignupConfirmPassword('');
-        setSignupFullName('');
-        setSignupPhoneNumber('');
-      } else {
-        Alert.alert('Sign Up Failed', result.error || 'Registration failed');
       }
     } catch (error) {
       Alert.alert('Error', `Network error: ${error}`);
@@ -182,151 +142,103 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Logo */}
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/images/android-icon-foreground.png')}
-            style={styles.illVoiceLogo}
+            source={require('../../assets/images/LoginLogo.png')}
           />
         </View>
+        <Text style={styles.sectionTitle}>Login to Your Account</Text>
 
-        {/* Tabs */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'login' && styles.activeTab]}
-            onPress={() => setActiveTab('login')}
-          >
-            <Text style={[styles.tabText, activeTab === 'login' && styles.activeTabText]}>
-              Login
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'signup' && styles.activeTab]}
-            onPress={() => setActiveTab('signup')}
-          >
-            <Text style={[styles.tabText, activeTab === 'signup' && styles.activeTabText]}>
-              Sign Up
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <View style={styles.content}>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your email"
+            value={email}
+            onChangeText={setEmail}
+            editable={!isLoading}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
 
-        {/* Login Tab */}
-        {activeTab === 'login' && (
-          <View style={styles.content}>
-            <Text style={styles.sectionTitle}>Illvoice Account</Text>
-
-            <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.passwordContainer}>
             <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              value={loginEmail}
-              onChangeText={setLoginEmail}
-              editable={!isLoading}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
+              style={styles.passwordInput}
               placeholder="Enter your password"
-              value={loginPassword}
-              onChangeText={setLoginPassword}
+              value={password}
+              onChangeText={setPassword}
               editable={!isLoading}
-              secureTextEntry
+              secureTextEntry={!showPassword}
             />
-
-            <View style={styles.buttonContainer}>
-              <Button
-                title={isLoading ? "Logging in..." : "Login"}
-                onPress={handleEmailLogin}
-                disabled={isLoading}
-              />
-            </View>
-
-            <View style={styles.divider} />
-
-            <Text style={styles.sectionTitle}>Or Continue With</Text>
-
-            <View style={styles.buttonContainer}>
-              <Button
-                title={isLoading ? "Signing in..." : "Sign in with Google"}
-                onPress={handleGoogleSignin}
-                disabled={isLoading}
-                color="#DB4437"
-              />
-            </View>
-
-            {isLoading && <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />}
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.eyeButton}
+            >
+              <Text style={styles.eyeButtonText}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+            </TouchableOpacity>
           </View>
-        )}
 
-        {/* Sign Up Tab */}
-        {activeTab === 'signup' && (
-          <View style={styles.content}>
-            <Text style={styles.sectionTitle}>Create Illvoice Account</Text>
-
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your full name"
-              value={signupFullName}
-              onChangeText={setSignupFullName}
-              editable={!isLoading}
-            />
-
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              value={signupEmail}
-              onChangeText={setSignupEmail}
-              editable={!isLoading}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <Text style={styles.label}>Phone Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your phone number"
-              value={signupPhoneNumber}
-              onChangeText={setSignupPhoneNumber}
-              editable={!isLoading}
-              keyboardType="phone-pad"
-            />
-
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Create a password (min 6 characters)"
-              value={signupPassword}
-              onChangeText={setSignupPassword}
-              editable={!isLoading}
-              secureTextEntry
-            />
-
-            <Text style={styles.label}>Confirm Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Confirm your password"
-              value={signupConfirmPassword}
-              onChangeText={setSignupConfirmPassword}
-              editable={!isLoading}
-              secureTextEntry
-            />
-
-            <View style={styles.buttonContainer}>
-              <Button
-                title={isLoading ? "Creating Account..." : "Sign Up"}
-                onPress={handleSignUp}
-                disabled={isLoading}
-              />
-            </View>
-
-            {isLoading && <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />}
+          <View style={styles.optionsRow}>
+            <TouchableOpacity
+              style={styles.rememberMeContainer}
+              onPress={() => setRememberMe(!rememberMe)}
+            >
+              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text style={styles.rememberMeText}>Remember me</Text>
+            </TouchableOpacity>
           </View>
-        )}
+
+          <View>
+            <Pressable
+              onPress={handleEmailLogin}
+              disabled={isLoading}
+              style={({ pressed }) => [
+                styles.loginButton,
+                pressed && { opacity: 0.8 },
+                isLoading && { opacity: 0.6 },
+              ]}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
+                {isLoading ? "Logging in..." : "Login"}
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.signupContainer}>
+            <Text style={styles.label}>Or</Text>
+          </View>
+
+          <View style={styles.signinGoogleContainer}>
+            <TouchableOpacity
+              onPress={handleGoogleSignin}
+              disabled={isLoading}
+              style={styles.googleButton}
+            >
+              <Image
+                source={require('../../assets/images/googs.svg')}
+                style={{ width: 20, height: 20, marginRight: 10 }}
+              />
+
+              <Text style={styles.googleButtonText}>
+                {isLoading ? "Signing in..." : "Sign in with Google"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.signupContainer}>
+            <Text style={styles.signupText}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => router.replace('/(auth)/signup')}>
+              <Text style={styles.signupLink}>Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+
+          {isLoading && <ActivityIndicator size="large" color="#1E3A8A" style={styles.loader} />}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -345,43 +257,13 @@ const styles = StyleSheet.create({
 
   logoContainer: {
     alignItems: 'center',
-    marginTop: 40,
-    marginBottom: 30,
+    marginTop: 100,
+    marginBottom: 90,
   },
 
   illVoiceLogo: {
-    width: 100,
-    height: 100,
-  },
-
-  tabContainer: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-
-  activeTab: {
-    borderBottomColor: '#007AFF',
-  },
-
-  tabText: {
-    fontSize: 16,
-    color: '#999',
-    fontWeight: '600',
-  },
-
-  activeTabText: {
-    color: '#007AFF',
+    width: 200,
+    height: 200,
   },
 
   content: {
@@ -389,16 +271,18 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '900',
+    fontFamily: 'System',
     marginBottom: 20,
-    color: '#333',
+    color: '#1E3A8A',
+    paddingHorizontal: 20,
   },
 
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#555',
+    color: '#7b7b7b',
     marginBottom: 6,
   },
 
@@ -413,8 +297,77 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9f9f9',
   },
 
-  buttonContainer: {
-    marginVertical: 10,
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+    marginBottom: 12,
+  },
+
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#010101'
+  },
+
+  eyeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+
+  eyeButtonText: {
+    fontSize: 18,
+  },
+
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 1,
+    borderColor: '#1E3A8A',
+    borderRadius: 4,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  checkboxChecked: {
+    backgroundColor: '#1E3A8A',
+  },
+
+  checkmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+
+  rememberMeText: {
+    fontSize: 14,
+    color: '#555',
+  },
+  
+  loginButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 20,
+    backgroundColor: '#1E3A8A',
+    alignItems: 'center',
   },
 
   divider: {
@@ -426,6 +379,45 @@ const styles = StyleSheet.create({
   loader: {
     marginTop: 20,
   },
+
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+
+  googleButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  signupContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+
+  signupText: {
+    fontSize: 14,
+    color: '#666',
+  },
+
+  signupLink: {
+    fontSize: 14,
+    color: '#1E3A8A',
+    fontWeight: '600',
+  },
+
+  signinGoogleContainer: {
+    marginVertical: 10,
+    borderRadius: 9,
+    borderWidth: 0.5,
+  },
+
 });
-
-

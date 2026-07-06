@@ -1,14 +1,19 @@
-import OpenAI from "openai";
-import fetch from "node-fetch";
+import { spawn } from "child_process";
 import fs from "fs";
+import fetch from "node-fetch";
+import OpenAI from "openai";
 import { tmpdir } from "os";
 import { join } from "path";
-import { spawn } from "child_process";
+import { SEVERITY_KEYWORDS } from "./keywords";
 
 let openai: OpenAI | null = null;
 
-function getOpenAIClient() {
-  if (!openai && process.env.OPENAI_API_KEY) {
+function getOpenAIClient(): OpenAI | null {
+  if (!openai) {
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("❌ OPENAI_API_KEY is not configured. AI analysis is disabled. Add OPENAI_API_KEY to backend/.env to enable.");
+      return null;
+    }
     openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -63,7 +68,7 @@ export async function extractVideoFrame(videoUrl: string): Promise<string | null
 
       ffmpeg.on("error", (err: any) => {
         console.error("FFmpeg error:", err.message);
-        try { fs.unlinkSync(tmpVideoPath); } catch {}
+        try { fs.unlinkSync(tmpVideoPath); } catch (e: any) { console.error("Cleanup error:", e.message); }
         resolve(null);
       });
     });
@@ -73,10 +78,78 @@ export async function extractVideoFrame(videoUrl: string): Promise<string | null
   }
 }
 
+export async function extractVideoFramesEverySecond(videoUrl: string, intervalSeconds: number = 1): Promise<string[]> {
+  try {
+    const response = await fetch(videoUrl);
+    if (!response.ok) {
+      console.error("Failed to fetch video:", response.status);
+      return [];
+    }
+
+    const videoBuffer = await response.arrayBuffer();
+    const tmpVideoPath = join(tmpdir(), `video_${Date.now()}.mp4`);
+    const framesDir = join(tmpdir(), `frames_${Date.now()}`);
+
+    fs.writeFileSync(tmpVideoPath, Buffer.from(videoBuffer));
+    fs.mkdirSync(framesDir, { recursive: true });
+
+    return new Promise((resolve) => {
+      const ffmpegPath = process.env.FFMPEG_PATH || "ffmpeg";
+      const ffmpeg = spawn(ffmpegPath, [
+        "-i", tmpVideoPath,
+        "-vf", `fps=1/${intervalSeconds}`,
+        "-q:v", "2",
+        join(framesDir, "frame_%04d.jpg")
+      ]);
+
+      ffmpeg.on("close", (code: number) => {
+        try {
+          fs.unlinkSync(tmpVideoPath);
+
+          if (code === 0) {
+            const files = fs.readdirSync(framesDir)
+              .filter(f => f.startsWith("frame_") && f.endsWith(".jpg"))
+              .sort();
+
+            const frames: string[] = [];
+            for (const file of files) {
+              const frameBuffer = fs.readFileSync(join(framesDir, file));
+              frames.push(`data:image/jpeg;base64,${frameBuffer.toString("base64")}`);
+            }
+
+            fs.rmSync(framesDir, { recursive: true, force: true });
+            resolve(frames);
+          } else {
+            fs.rmSync(framesDir, { recursive: true, force: true });
+            resolve([]);
+          }
+        } catch (err: any) {
+          console.error("Multi-frame extraction error:", err.message);
+          resolve([]);
+        }
+      });
+
+      ffmpeg.on("error", (err: any) => {
+        console.error("FFmpeg error:", err.message);
+        try { fs.unlinkSync(tmpVideoPath); } catch (e: any) { }
+        try { fs.rmSync(framesDir, { recursive: true, force: true }); } catch (e: any) { }
+        resolve([]);
+      });
+    });
+  } catch (err: any) {
+    console.error("Video multi-frame extraction error:", err.message);
+    return [];
+  }
+}
+
 /**
- * Transcribe audio to text using Whisper
+ * Transcribe audio using local faster-whisper when available, fallback to OpenAI Whisper
  */
 export async function transcribeAudio(audioUrl: string): Promise<string> {
+  if (process.env.USE_LOCAL_WHISPER === "true") {
+    return await transcribeAudioLocal(audioUrl);
+  }
+
   const client = getOpenAIClient();
   if (!client) {
     console.log("OpenAI not configured, cannot transcribe audio");
@@ -97,7 +170,7 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
 
     const transcript = await client.audio.transcriptions.create({
       model: "whisper-1",
-      file: fs.createReadStream(tmpAudioPath) as any,
+      file: fs.readFileSync(tmpAudioPath) as any,
     });
 
     fs.unlinkSync(tmpAudioPath);
@@ -105,6 +178,62 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     return transcript.text;
   } catch (err: any) {
     console.error("❌ Whisper transcription error:", err.message);
+    return "";
+  }
+}
+
+export async function transcribeAudioLocal(audioUrl: string): Promise<string> {
+  try {
+    const response = await fetch(audioUrl);
+    if (!response.ok) {
+      console.error("Failed to fetch audio:", response.status);
+      return "";
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    const tmpAudioPath = join(tmpdir(), `audio_${Date.now()}.wav`);
+    fs.writeFileSync(tmpAudioPath, Buffer.from(audioBuffer));
+
+    return new Promise((resolve) => {
+      const whisperPath = process.env.FASTER_WHISPER_PATH || "faster-whisper";
+      const whisper = spawn(whisperPath, [
+        "--model", "base",
+        "--language", "auto",
+        tmpAudioPath
+      ]);
+
+      let output = "";
+      let errorOutput = "";
+
+      whisper.stdout.on("data", (data) => {
+        output += data.toString();
+      });
+
+      whisper.stderr.on("data", (data) => {
+        errorOutput += data.toString();
+      });
+
+      whisper.on("close", (code: number) => {
+        try {
+          fs.unlinkSync(tmpAudioPath);
+        } catch (e) { }
+
+        if (code === 0) {
+          console.log("✅ Local whisper transcribed:", output.substring(0, 100));
+          resolve(output.trim());
+        } else {
+          console.error("❌ Local whisper error:", errorOutput);
+          resolve("");
+        }
+      });
+
+      whisper.on("error", (err: any) => {
+        console.error("❌ Local whisper spawn error:", err.message);
+        resolve("");
+      });
+    });
+  } catch (err: any) {
+    console.error("❌ Local whisper transcription error:", err.message);
     return "";
   }
 }
@@ -123,13 +252,12 @@ export async function analyzeVideoWithVision(videoUrl: string): Promise<{
     return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
   }
 
-  const client = getOpenAIClient();
-  if (!client) {
-    console.log("OpenAI not configured, cannot analyze video frame");
-    return { description: "", hazards: [], severity_indicator: "UNKNOWN", frameBase64 };
-  }
-
   try {
+    const client = getOpenAIClient();
+    if (!client) {
+      return { description: "", hazards: [], severity_indicator: "UNKNOWN", frameBase64 };
+    }
+
     const response = await client.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -172,6 +300,92 @@ Look for: fire, flooding, structural damage, accidents, debris, dangerous condit
   }
 }
 
+export async function analyzeVideoWithVisionMultiFrame(
+  videoUrl: string,
+  maxFrames: number = 5
+): Promise<{
+  description: string;
+  hazards: string[];
+  severity_indicator: string;
+  frameBase64?: string;
+  allHazards?: string[][];
+}> {
+  const frames = await extractVideoFramesEverySecond(videoUrl, 1);
+  const framesToAnalyze = frames.slice(0, maxFrames);
+
+  if (framesToAnalyze.length === 0) {
+    return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
+  }
+
+  const allHazards: string[][] = [];
+  let combinedDescription = "";
+
+  for (const frame of framesToAnalyze) {
+    try {
+      const client = getOpenAIClient();
+      if (!client) continue;
+
+      const response = await client.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Analyze this video frame for public safety hazards. Return JSON with:
+{
+  "description": "brief description of what you see in the frame",
+  "hazards": ["list", "of", "identified", "hazards"],
+  "severity_indicator": "LOW|MODERATE|HIGH"
+}
+
+Look for: fire, flooding, structural damage, accidents, debris, dangerous conditions, etc.`,
+              },
+              {
+                type: "image_url",
+                image_url: { url: frame },
+              },
+            ],
+          },
+        ],
+      });
+
+      const content = response.choices[0].message.content || "{}";
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      const result = jsonMatch ? JSON.parse(jsonMatch[0]) : {
+        description: "",
+        hazards: [],
+        severity_indicator: "LOW",
+      };
+
+      allHazards.push(result.hazards);
+      combinedDescription += `Frame: ${result.description}. Hazards: ${result.hazards.join(", ")}. `;
+
+      if (result.severity_indicator === "HIGH") {
+        return {
+          description: combinedDescription,
+          hazards: result.hazards,
+          severity_indicator: "HIGH",
+          allHazards,
+        };
+      }
+    } catch (err: any) {
+      console.error("❌ Frame analysis error:", err.message);
+    }
+  }
+
+  const combinedHazards = allHazards.flat();
+  const ruleBasedSeverity = getRuleBasedSeverity(combinedDescription, "", "");
+
+  return {
+    description: combinedDescription,
+    hazards: combinedHazards,
+    severity_indicator: ruleBasedSeverity,
+    allHazards,
+  };
+}
+
 /**
  * Analyze image using Vision model to detect hazards
  */
@@ -180,17 +394,12 @@ export async function analyzeImageWithVision(imageUrl: string): Promise<{
   hazards: string[];
   severity_indicator: string;
 }> {
-  const client = getOpenAIClient();
-  if (!client) {
-    console.log("OpenAI not configured, cannot analyze image");
-    return {
-      description: "",
-      hazards: [],
-      severity_indicator: "UNKNOWN",
-    };
-  }
-
   try {
+    const client = getOpenAIClient();
+    if (!client) {
+      return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
+    }
+
     const response = await client.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -257,8 +466,7 @@ export async function analyzeSeverityMultimodal({
 }): Promise<string> {
   const client = getOpenAIClient();
   if (!client) {
-    console.log("OpenAI not configured, using rule-based analysis");
-    return getRuleBasedSeverity(title, description, transcribedAudio);
+    throw new Error("OpenAI API key not configured. Set OPENAI_API_KEY in backend/.env to enable AI analysis.");
   }
 
   try {
@@ -352,39 +560,24 @@ Return ONLY the word: LOW | MODERATE | HIGH`;
   }
 }
 
-function getRuleBasedSeverity(title: string, description: string, audioText?: string): string {
+export function getRuleBasedSeverity(title: string, description: string, audioText?: string): string {
   const text = `${title} ${description} ${audioText || ""}`.toLowerCase();
 
-  // HIGH severity keywords
-  const highKeywords = [
-    "fire", "flames", "burning", "smoke",
-    "explosion", "explosion risk",
-    "violence", "assault", "stab", "shoot",
-    "trapped", "injured", "injury", "unconscious",
-    "collapsed", "collapse", "structural damage",
-    "emergency", "critical",
-  ];
+  const highMatch = SEVERITY_KEYWORDS.HIGH.some(k =>
+    text.includes(k.toLowerCase())
+  );
+  if (highMatch) return "HIGH";
 
-  if (highKeywords.some(k => text.includes(k))) {
-    return "HIGH";
-  }
+  const moderateMatch = SEVERITY_KEYWORDS.MODERATE.some(k =>
+    text.includes(k.toLowerCase())
+  );
+  if (moderateMatch) return "MODERATE";
 
-  // MODERATE severity keywords
-  const moderateKeywords = [
-    "flood", "flooding", "water",
-    "accident", "accident",
-    "damage", "damaged", "broken",
-    "leak", "leaking",
-    "power outage", "blackout",
-    "traffic", "blockage", "blocked",
-    "hazmat", "chemical spill",
-  ];
+  const lowMatch = SEVERITY_KEYWORDS.LOW.some(k =>
+    text.includes(k.toLowerCase())
+  );
+  if (lowMatch) return "LOW";
 
-  if (moderateKeywords.some(k => text.includes(k))) {
-    return "MODERATE";
-  }
-
-  // Default to LOW
   return "LOW";
 }
 
@@ -406,7 +599,7 @@ export async function generateAIInsightsMultimodal({
 }): Promise<string> {
   const client = getOpenAIClient();
   if (!client) {
-    return "AI analysis not available.";
+    throw new Error("OpenAI API key not configured. Set OPENAI_API_KEY in backend/.env to enable AI analysis.");
   }
 
   try {
@@ -444,3 +637,4 @@ Include:
     return "Analysis unavailable due to API error.";
   }
 }
+

@@ -66,6 +66,13 @@
         }
       ],
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Illvoice to use your location to identify your barangay for reports.",
+          "locationAlwaysAndWhenInUsePermission": "Allow Illvoice to use your location to identify your barangay for reports."
+        }
+      ],
+      [
         "react-native-maps",
         {
           "mapsVersion": "google-play-services-maps@18.2.0",
@@ -83,7 +90,8 @@
       "router": {},
       "eas": {
         "projectId": "d6f4435b-2dbd-449e-ae17-c7c87d14a711"
-      }
+      },
+      "BACKEND_URL": "http://192.168.5.235:4000"
     }
   }
 }
