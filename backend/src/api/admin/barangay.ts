@@ -3,6 +3,14 @@ import { prisma } from "../../prisma";
 
 const router = Router();
 
+const getRouteParamId = (value: string | string[] | undefined): string | null => {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+};
+
 router.get("/", async (_req: Request, res: Response) => {
   try {
     const barangays = await prisma.barangay.findMany({
@@ -24,7 +32,12 @@ router.get("/", async (_req: Request, res: Response) => {
 
 router.get("/:id", async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParamId(req.params.id);
+
+    if (!id) {
+      return res.status(400).json({ error: "Barangay ID is required" });
+    }
+
     const barangay = await prisma.barangay.findUnique({
       where: { id },
       select: {
@@ -80,7 +93,7 @@ router.post("/", async (req: Request, res: Response) => {
 // Update barangay (name, location, address, boundary)
 router.put("/:id", async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParamId(req.params.id);
     const { name, latitude, longitude, address, boundaryPolygon } = req.body;
 
     if (!id) {
@@ -113,7 +126,7 @@ router.put("/:id", async (req: Request, res: Response) => {
 // Delete barangay
 router.delete("/:id", async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParamId(req.params.id);
 
     if (!id) {
       return res.status(400).json({ error: "Barangay ID is required" });
@@ -147,7 +160,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 // Get officials for a barangay
 router.get("/:id/officials", async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParamId(req.params.id);
 
     if (!id) {
       return res.status(400).json({ error: "Barangay ID is required" });

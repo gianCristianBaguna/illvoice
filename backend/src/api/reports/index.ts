@@ -1,7 +1,7 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { prisma } from '../../prisma';
 import { analyzeSeverity, generateAIInsights } from "../../services/severityAI/index";
-import { applyBarangayScope, getScopedBarangayId, optionalAuth, requireAssignedBarangay, type AuthenticatedRequest } from "../../middleware/auth";
+import { applyBarangayScope, authenticateToken, getScopedBarangayId, requireAssignedBarangay, type AuthenticatedRequest } from "../../middleware/auth";
 import { broadcastToUser } from '../../sse';
 
 const router = Router();
@@ -26,7 +26,7 @@ async function createNotification(userId: string, title: string, message: string
   }
 }
 
-function getNearestBarangay(latitude: number, longitude: number, barangays: Array<{ id: string; latitude: number; longitude: number }>) {
+function getNearestBarangay(latitude: number, longitude: number, barangays: { id: string; latitude: number; longitude: number }[]) {
   let nearestBarangay: { id: string; latitude: number; longitude: number } | null = null;
   let minDistance = Infinity;
 
@@ -104,7 +104,7 @@ function ensureReportInAssignedBarangay(report: { barangayId: string | null }, r
   return report.barangayId === scopedBarangayId;
 }
 
-router.post('/', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { email, title, description, severity, mediaType, mediaUrl } = req.body;
 
@@ -166,9 +166,11 @@ router.post('/', optionalAuth, requireAssignedBarangay(), async (req: Authentica
 // -------------------------------
 // GET ALL REPORTS
 // -------------------------------
-router.get('/', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const scopedBarangayId = getScopedBarangayId(req);
     const reports = await prisma.report.findMany({
+      where: scopedBarangayId ? { barangayId: scopedBarangayId } : undefined,
       include: {
         user: true,
         multimedia: true,
@@ -193,12 +195,14 @@ router.get('/', optionalAuth, requireAssignedBarangay(), async (req: Authenticat
 // -------------------------------
 // GET URGENT ALERTS (HIGH severity reports)
 // -------------------------------
-router.get('/urgent', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/urgent', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const scopedBarangayId = getScopedBarangayId(req);
     const urgentReports = await prisma.report.findMany({
       where: {
         severity: 'HIGH',
         status: { not: 'RESOLVED' },
+        ...(scopedBarangayId ? { barangayId: scopedBarangayId } : {}),
       },
       include: {
         barangay: true,
@@ -234,10 +238,11 @@ router.get('/urgent', optionalAuth, requireAssignedBarangay(), async (req: Authe
 // -------------------------------
 // GET ACTIVITY FEED
 // -------------------------------
-router.get('/activity', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/activity', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const scopedBarangayId = getScopedBarangayId(req);
 
     const reports = await prisma.report.findMany({
       include: {
@@ -250,6 +255,7 @@ router.get('/activity', optionalAuth, requireAssignedBarangay(), async (req: Aut
           { createdAt: { gte: today } },
           { resolvedAt: { gte: today } },
         ],
+        ...(scopedBarangayId ? { barangayId: scopedBarangayId } : {}),
       },
       orderBy: {
         createdAt: 'desc',
@@ -259,7 +265,6 @@ router.get('/activity', optionalAuth, requireAssignedBarangay(), async (req: Aut
 
     const hydratedReports = await hydrateMissingBarangays(reports);
     const scopedReports = applyBarangayScope(hydratedReports, req);
-    const scopedBarangayId = getScopedBarangayId(req);
     const recentUsers = await prisma.user.findMany({
       where: {
         createdAt: { gte: today },
@@ -368,7 +373,7 @@ router.get('/activity', optionalAuth, requireAssignedBarangay(), async (req: Aut
 // -------------------------------
 // RESOLVE REPORT
 // -------------------------------
-router.post('/:id/resolve', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/resolve', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   const idParam = req.params.id;
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const { resolvedByName } = req.body;
@@ -453,7 +458,7 @@ router.post('/:id/resolve', optionalAuth, requireAssignedBarangay(), async (req:
 // -------------------------------
 // UPDATE REPORT
 // -------------------------------
-router.patch('/:id', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   const idParam = req.params.id;
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const { status, severity, resolvedByName, assignedTo, deadline, resolutionNotes, isCredible } = req.body;
@@ -509,7 +514,7 @@ router.patch('/:id', optionalAuth, requireAssignedBarangay(), async (req: Authen
 
     // Recalculate user credibility if isCredible was updated
     if (isCredible !== undefined && report.userId) {
-      const userReports = await prisma.report.findMany({
+      const userReports: { status: string; isCredible: boolean }[] = await prisma.report.findMany({
         where: { userId: report.userId },
         select: { status: true, isCredible: true },
       });
@@ -566,7 +571,7 @@ router.patch('/:id', optionalAuth, requireAssignedBarangay(), async (req: Authen
 // -------------------------------
 // AI ANALYSIS
 // -------------------------------
-router.post('/:id/analyze', optionalAuth, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/analyze', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   const idParam = req.params.id;
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
 
@@ -581,12 +586,19 @@ router.post('/:id/analyze', optionalAuth, requireAssignedBarangay(), async (req:
       where: { id },
       include: {
         multimedia: true,
+        barangay: true,
       },
     });
 
     if (!report) {
       return res.status(404).json({
         error: 'Report not found',
+      });
+    }
+
+    if (!ensureReportInAssignedBarangay(report, req)) {
+      return res.status(403).json({
+        error: 'You can only analyze reports from your assigned barangay',
       });
     }
 

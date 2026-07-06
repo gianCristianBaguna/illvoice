@@ -1,11 +1,19 @@
-import { Request, Response, Router } from 'express';
 import bcrypt from 'bcryptjs';
+import { Request, Response, Router } from 'express';
 import jwt from 'jsonwebtoken';
+import { authenticateToken, authorizeRoles } from '../../middleware/auth';
 import { prisma } from '../../prisma';
-import { authorizeRoles, authenticateToken } from '../../middleware/auth';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
+
+const getRouteParamId = (value: string | string[] | undefined): string | null => {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+};
 
 function signAdminToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null }) {
   return jwt.sign(
@@ -258,7 +266,7 @@ router.post('/register-admin', authenticateToken, authorizeRoles(['ADMIN']), asy
 // Update user password (admin only)
 router.put('/users/:id/password', authenticateToken, authorizeRoles(['ADMIN']), async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParamId(req.params.id);
     const { password } = req.body;
 
     if (!id || !password) {
@@ -291,7 +299,7 @@ router.put('/users/:id/password', authenticateToken, authorizeRoles(['ADMIN']), 
 // Activate/Deactivate user (admin only)
 router.patch('/users/:id/status', authenticateToken, authorizeRoles(['ADMIN']), async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParamId(req.params.id);
     const { active } = req.body;
 
     if (!id) {
@@ -325,7 +333,7 @@ router.patch('/users/:id/status', authenticateToken, authorizeRoles(['ADMIN']), 
 // Delete user (admin only)
 router.delete('/users/:id', authenticateToken, authorizeRoles(['ADMIN']), async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParamId(req.params.id);
 
     if (!id) {
       return res.status(400).json({ error: 'User ID is required' });

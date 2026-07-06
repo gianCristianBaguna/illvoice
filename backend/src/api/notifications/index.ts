@@ -1,7 +1,15 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { prisma } from '../../prisma';
 
 const router = Router();
+
+const getRouteParamId = (value: string | string[] | undefined): string | null => {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+};
 
 // GET /api/notifications - Fetch notifications for the current user
 router.get('/', async (req: any, res: Response) => {
@@ -41,7 +49,11 @@ router.patch('/:id/read', async (req: any, res: Response) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const { id } = req.params;
+    const id = getRouteParamId(req.params.id);
+
+    if (!id) {
+      return res.status(400).json({ error: 'Notification ID is required' });
+    }
 
     const notification = await prisma.notification.findFirst({
       where: { id, user: { email: user.email } },

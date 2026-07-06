@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { ComplaintsTable } from '@/components/ComplaintsTable';
 import { UrgentReportsModal } from '@/components/UrgentReportsModal';
 import { ViewReportModal } from '@/components/ViewReportModal';
@@ -12,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth-context';
 import { fetchBarangayInfo, fetchComplaints } from '@/lib/api';
 import { Complaint } from '@/lib/mockData';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';

@@ -68,7 +68,7 @@ model Barangay {
   address          String?
   boundaryPolygon  Json?
   createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  updatedAt        DateTime @updatedAt @default(now())
   reports          Report[]
   officials        User[]
 }
