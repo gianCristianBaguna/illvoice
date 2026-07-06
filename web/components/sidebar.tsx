@@ -71,7 +71,7 @@ export function Sidebar() {
         } md:translate-x-0 md:z-30`}
       >
         {/* Logo */}
-        <div className="flex items-center gap-2 mb-8">
+        <div className="flex items-center gap-2 mb-8 shrink-0">
           <img
             src="/whitelogo.png"
             alt="ILLVoice logo"
@@ -79,6 +79,7 @@ export function Sidebar() {
           />
         </div>
 
+        <div className="flex-1 overflow-y-auto min-h-0">
         {/* Main Menu */}
         <div className="mb-8">
           <p className="text-xs font-semibold text-slate-400 uppercase mb-3">Main</p>
@@ -144,6 +145,7 @@ export function Sidebar() {
             </nav>
           </div>
         )}
+        </div>
 
         {/* User Profile */}
         <div className="mt-auto pt-6 border-t border-slate-800">
@@ -161,6 +163,7 @@ export function Sidebar() {
               <MoreVertical size={16} className="text-slate-400" />
             </button>
           </div>
+        </div>
         </div>
       </aside>
     </>
