@@ -73,7 +73,7 @@ export function Sidebar() {
         {/* Logo */}
         <div className="flex items-center gap-2 mb-8">
           <img
-            src="/LoginLogo.png"
+            src="/whitelogo.png"
             alt="ILLVoice logo"
             className="h-8 w-auto object-contain"
           />
