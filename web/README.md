@@ -128,7 +128,7 @@ To connect this dashboard to a real database:
 
 1. Replace mock data in `/lib/mockData.ts` with actual API calls
    - the project now ships with `/lib/api.ts` which defines `fetchComplaints` and `updateComplaint`.
-   - configure `NEXT_PUBLIC_BACKEND_URL` in your `.env.local` to point at your running backend (defaults to `http://yourlocalhost:4000`).
+    - configure `NEXT_PUBLIC_BACKEND_URL` in your `.env.local` to point at your running backend (defaults to `http://192.168.5.235:4000`).
 2. Implement backend endpoints for:
    - Fetching complaints
    - Updating complaint status
@@ -144,13 +144,10 @@ To connect this dashboard to a real database:
 ## Customization
 
 ### Adding More Team Members
-Edit `teamMemberList` in `/lib/mockData.ts`:
-```typescript
-const teamMembers = ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Williams', 'Alex Brown'];
-```
+Team members are fetched dynamically from the backend. To add team members, create users with `BARANGAY_OFFICIAL` or `ADMIN` role in the system. Use the `/api/admin/register-barangay-official` endpoint.
 
 ### Modifying Complaint Categories
-Update the `category` field in mock complaints data.
+Categories are stored in the `category` field of reports in the database.
 
 ### Adjusting Analytics Calculations
 Modify calculation functions in `getComplaintStats()` and `getComplaintsTrend()` in `/lib/mockData.ts`.

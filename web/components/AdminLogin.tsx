@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/auth-context';
 
 declare global {
   interface Window {
@@ -17,6 +18,7 @@ export function AdminLogin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { login } = useAuth();
 
   useEffect(() => {
     const handleGoogleSignIn = async (response: any) => {
@@ -24,13 +26,12 @@ export function AdminLogin() {
       setError('');
 
       try {
-        const serverResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/google-signin`, {
+        const serverResponse = await fetch('/api/auth/google-signin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: response.credential }),
+          body: JSON.stringify({ credential: response.credential }),
         });
 
-        // Read response safely to avoid HTML parsing errors
         const contentType = serverResponse.headers.get('content-type');
         if (!serverResponse.ok) {
           let errorMsg = 'Google sign-in failed';
@@ -46,14 +47,16 @@ export function AdminLogin() {
             ? await serverResponse.json()
             : null;
 
-        if (!data || !data.token || !data.email) {
+        if (!data || !data.success) {
           throw new Error('Invalid server response');
         }
 
-        localStorage.setItem('adminToken', data.token);
-        localStorage.setItem('adminEmail', data.email);
-
-        router.push('/dashboard');
+        login(data.token, data.email, data.role, data.barangayId);
+        if (data.role === 'BARANGAY_OFFICIAL') {
+          router.push('/barangay-dashboard');
+        } else {
+          router.push('/dashboard');
+        }
       } catch (err: any) {
         setError(err.message || 'Google sign-in failed');
       } finally {
@@ -61,7 +64,6 @@ export function AdminLogin() {
       }
     };
 
-    // Load Google Sign-In script
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -70,7 +72,6 @@ export function AdminLogin() {
 
     script.onload = () => {
       const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-      console.log('Google Client ID:', clientId);
 
       if (window.google && clientId) {
         window.google.accounts.id.initialize({
@@ -91,7 +92,7 @@ export function AdminLogin() {
         document.body.removeChild(script);
       }
     };
-  }, [router]);
+  }, [router, login]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,7 +100,7 @@ export function AdminLogin() {
     setError('');
 
     try {
-      const response = await fetch('/api/admin/verify', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -115,11 +116,10 @@ export function AdminLogin() {
         throw new Error(msg);
       }
 
-      const data = await response.json();
-      localStorage.setItem('adminToken', data.token);
-      localStorage.setItem('adminEmail', email);
+const data = await response.json();
 
-      router.push('/dashboard');
+       login(data.token, data.email, data.role, data.barangayId || null);
+       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
@@ -187,6 +187,14 @@ export function AdminLogin() {
           <p className="font-semibold mb-2">Demo Credentials:</p>
           <p>Email: admin@demo.gov</p>
           <p>Password: admin123</p>
+          <p className="mt-2 text-xs">Role: BARANGAY OFFICIAL</p>
+        </div>
+
+        <div className="mt-4 p-4 bg-green-50 rounded-lg text-sm text-green-800">
+          <p className="font-semibold mb-2">Admin Credentials:</p>
+          <p>Email: admin@illvoice.local</p>
+          <p>Password: admin123</p>
+          <p className="mt-2 text-xs">Role: ADMIN (sees all reports)</p>
         </div>
       </div>
     </div>

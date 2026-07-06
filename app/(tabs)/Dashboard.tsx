@@ -1,22 +1,20 @@
-import { useAuth } from "@/app/services/auth-context";
-import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
-import React, { useEffect, useState } from "react";
+import { useAuth } from '@/contexts/auth-context';
+import { BACKEND_URL } from '@/config';
+import { router } from 'expo-router';
+import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import { Ionicons } from '@expo/vector-icons';
 
 interface Report {
   id: string;
@@ -30,183 +28,66 @@ interface Report {
   multimedia?: { type: string; url: string }[];
 }
 
-const BACKEND_URL = "http://192.168.50.203:4000";
-
-interface DashboardStats {
-  totalReports: number;
-  resolvedCount: number;
-  pendingCount: number;
-  credibility: number;
-}
-
 export default function Dashboard() {
-  const [modalVisible, setModalVisible] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [location, setLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-  const { userEmail } = useAuth();
-  const [media, setMedia] = useState<string | null>(null);
-  const [mediaType, setMediaType] = useState<"TEXT" | "IMAGE" | "VIDEO" | "AUDIO">("TEXT");
+  const { userEmail, userName, userPhoto, idToken } = useAuth();
   const [userReports, setUserReports] = useState<Report[]>([]);
-  const [nearbyReports, setNearbyReports] = useState<Report[]>([]);
-  const [stats, setStats] = useState<DashboardStats>({
-    totalReports: 0,
-    resolvedCount: 0,
-    pendingCount: 0,
-    credibility: 1.0,
-  });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  useEffect(() => {
-    getLocation();
-    fetchDashboardData();
-  }, [userEmail]);
-
-  const getLocation = async () => {
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Permission", "Location access is required for reporting");
-        return;
-      }
-
-      const currentLocation = await Location.getCurrentPositionAsync({});
-      setLocation({
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      });
-    } catch (err) {
-      console.error("Location error:", err);
+  const loadDashboardData = async () => {
+    if (!userEmail) {
+      setLoading(false);
+      return;
     }
-  };
-
-  const fetchDashboardData = async () => {
-    if (!userEmail) return;
 
     try {
       setLoading(true);
 
-      // Fetch user reports
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      };
+
       const reportsResponse = await fetch(`${BACKEND_URL}/dashboard/reports/by-email`, {
-        headers: { "X-User-Email": userEmail },
+        headers,
       });
 
-      if (reportsResponse.ok) {
-        const reports = await reportsResponse.json();
-        setUserReports(reports);
-
-        // Calculate stats
-        const resolved = reports.filter((r: Report) => r.status === "RESOLVED").length;
-        const pending = reports.filter((r: Report) => r.status === "PENDING").length;
-        setStats({
-          totalReports: reports.length,
-          resolvedCount: resolved,
-          pendingCount: pending,
-          credibility: 1.0 + (resolved * 0.1), // Credibility increases with resolved reports
-        });
+      if (!reportsResponse.ok) {
+        const error = await reportsResponse.json().catch(() => ({}));
+        throw new Error(error.error || `Failed to fetch reports: ${reportsResponse.status}`);
       }
 
-      // Fetch all reports for nearby view
-      const allReportsResponse = await fetch(`${BACKEND_URL}/api/reports`);
-      if (allReportsResponse.ok) {
-        const allReports = await allReportsResponse.json();
-        setNearbyReports(allReports.slice(0, 10)); // Show top 10 recent
-      }
+      const reports = await reportsResponse.json();
+      const reportList = Array.isArray(reports) ? reports : [];
+      setUserReports(reportList);
     } catch (err) {
       console.error("Error fetching dashboard:", err);
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to fetch dashboard data");
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadDashboardData();
+  }, [userEmail, idToken]);
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchDashboardData();
+    await loadDashboardData();
     setRefreshing(false);
   };
 
-  const pickMedia = async () => {
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!permission.granted) {
-        Alert.alert("Permission required", "Please allow media access");
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
-        quality: 0.8,
-      });
-
-      if (!result.canceled) {
-        const asset = result.assets[0];
-        setMedia(asset.uri);
-
-        if (asset.type === "video") {
-          setMediaType("VIDEO");
-        } else if (asset.type === "image") {
-          setMediaType("IMAGE");
-        }
-      }
-    } catch (err) {
-      Alert.alert("Error", "Failed to pick media");
-    }
-  };
-
-  const handleSubmitReport = async () => {
-    if (!title.trim() || !description.trim()) {
-      Alert.alert("Error", "Please fill in title and description");
-      return;
-    }
-
-    if (!location) {
-      Alert.alert("Error", "Location is required");
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      const payload = {
-        email: userEmail,
-        title,
-        description,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        mediaType: mediaType === "TEXT" ? undefined : mediaType,
-        mediaUrl: media || "N/A",
-      };
-
-      const response = await fetch(`${BACKEND_URL}/dashboard/reports/by-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        Alert.alert("Error", error.error || "Failed to submit report");
-        return;
-      }
-
-      Alert.alert("Success", "Report submitted successfully!");
-      setTitle("");
-      setDescription("");
-      setMedia(null);
-      setMediaType("TEXT");
-      setModalVisible(false);
-      await fetchDashboardData();
-    } catch (err) {
-      console.error("Error submitting report:", err);
-      Alert.alert("Error", "Failed to submit report");
-    } finally {
-      setSubmitting(false);
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case "RESOLVED":
+        return { color: "#34c759", icon: "checkmark-circle" as const, label: "Resolved" };
+      case "IN_PROGRESS":
+        return { color: "#1E3A8A", icon: "time" as const, label: "In Progress" };
+      default:
+        return { color: "#8e8e93", icon: "hourglass" as const, label: "Pending" };
     }
   };
 
@@ -221,21 +102,21 @@ export default function Dashboard() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "RESOLVED":
-        return "#34c759";
-      case "IN_PROGRESS":
-        return "#ff9500";
-      default:
-        return "#007aff";
-    }
+  const handleReportPress = () => {
+    router.push('/report');
+  };
+
+  const openReportDetail = (report: Report) => {
+    setSelectedReport(report);
+    setModalVisible(true);
   };
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={styles.loadingContainer}>
+        <View style={[styles.loadingView, { backgroundColor: '#1E3A8A' }]}>
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
       </View>
     );
   }
@@ -244,283 +125,247 @@ export default function Dashboard() {
     <ScrollView
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      showsVerticalScrollIndicator={false}
     >
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Community Issues Dashboard</Text>
-        <Text style={styles.headerSubtitle}>Track and report local problems</Text>
+      <View style={styles.headerContainer}>
+        <View style={[styles.headerView, { backgroundColor: '#1E3A8A' }]}>
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.greetingText}>Welcome back,</Text>
+              <Text style={styles.userNameText}>{userName || "User"}</Text>
+              <Text style={styles.subtitleText}>Here's what's happening with your reports</Text>
+            </View>
+            <View style={styles.avatarContainer}>
+              {userPhoto ? (
+                <Image
+                  source={{ uri: userPhoto }}
+                  style={styles.userAvatar}
+                />
+              ) : (
+                <View style={[styles.userAvatar, styles.avatarPlaceholder]}>
+                  <Ionicons name="person" size={28} color="#fff" />
+                </View>
+              )}
+              <View style={styles.avatarBadge}>
+                <Ionicons name="star" size={12} color="#fff" />
+              </View>
+            </View>
+          </View>
+        </View>
       </View>
 
-      {/* Stats Cards */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.totalReports}</Text>
-          <Text style={styles.statLabel}>Total Reports</Text>
+      {/* Hero Report Button */}
+      <TouchableOpacity style={styles.heroButtonContainer} onPress={handleReportPress} activeOpacity={0.9}>
+        <View style={styles.heroButton}>
+          <View style={styles.heroContent}>
+            <View style={styles.heroTextContainer}>
+              <Text style={styles.heroButtonTitle}>Submit a Report</Text>
+              <Text style={styles.heroButtonSubtitle}>Report an issue in your community</Text>
+            </View>
+            <View style={styles.heroIconWrapper}>
+              <View style={styles.heroIconInner}>
+                <Ionicons name="megaphone" size={28} color="#fff" />
+              </View>
+              <View style={styles.heroPulseRing} />
+            </View>
+          </View>
+          <View style={styles.heroDivider} />
+          <View style={styles.heroBottomRow}>
+            <View style={styles.heroFeatureRow}>
+              <View style={styles.heroFeatureDot} />
+              <Text style={styles.heroFeatureText}>Quick</Text>
+              <View style={styles.heroFeatureDot} />
+              <Text style={styles.heroFeatureText}>Secure</Text>
+              <View style={styles.heroFeatureDot} />
+              <Text style={styles.heroFeatureText}>Trackable</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.9)" />
+          </View>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.resolvedCount}</Text>
-          <Text style={styles.statLabel}>Resolved</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.pendingCount}</Text>
-          <Text style={styles.statLabel}>Pending</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: "#FFD700" }]}>
-            {stats.credibility.toFixed(1)}
-          </Text>
-          <Text style={styles.statLabel}>Credibility</Text>
-        </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Quick Actions */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => {
-            setMediaType("TEXT");
-            setModalVisible(true);
-          }}
-        >
-          <Text style={styles.actionIcon}>📝</Text>
-          <Text style={styles.actionLabel}>Report Issue</Text>
+      <View style={styles.quickActionsContainer}>
+        <TouchableOpacity style={styles.quickAction} onPress={() => {}}>
+          <View style={[styles.quickActionIcon, { backgroundColor: '#f0f0ff' }]}>
+            <Ionicons name="map" size={22} color="#1E3A8A" />
+          </View>
+          <Text style={styles.quickActionText}>Map</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => {
-            setMediaType("IMAGE");
-            pickMedia();
-            setModalVisible(true);
-          }}
-        >
-          <Text style={styles.actionIcon}>📷</Text>
-          <Text style={styles.actionLabel}>Photo Report</Text>
+        <TouchableOpacity style={styles.quickAction} onPress={() => {}}>
+          <View style={[styles.quickActionIcon, { backgroundColor: '#f0fdf4' }]}>
+            <Ionicons name="people" size={22} color="#166534" />
+          </View>
+          <Text style={styles.quickActionText}>Community</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => {
-            setMediaType("VIDEO");
-            pickMedia();
-            setModalVisible(true);
-          }}
-        >
-          <Text style={styles.actionIcon}>🎥</Text>
-          <Text style={styles.actionLabel}>Video Report</Text>
+        <TouchableOpacity style={styles.quickAction} onPress={() => {}}>
+          <View style={[styles.quickActionIcon, { backgroundColor: '#fff7ed' }]}>
+            <Ionicons name="call" size={22} color="#9a3412" />
+          </View>
+          <Text style={styles.quickActionText}>Emergency</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => {
-            setMediaType("AUDIO");
-            setModalVisible(true);
-          }}
-        >
-          <Text style={styles.actionIcon}>🎙️</Text>
-          <Text style={styles.actionLabel}>Voice Report</Text>
+        <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/history')}>
+          <View style={[styles.quickActionIcon, { backgroundColor: '#f5f5ff' }]}>
+            <Ionicons name="time" size={22} color="#1E3A8A" />
+          </View>
+          <Text style={styles.quickActionText}>History</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Map Preview */}
-      {location && (
-        <View style={styles.mapSection}>
-          <Text style={styles.sectionTitle}>Your Location</Text>
-          <MapView
-            style={styles.map}
-            initialRegion={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-              latitudeDelta: 0.0922,
-              longitudeDelta: 0.0421,
-            }}
-          >
-            <Marker
-              coordinate={location}
-              title="Your Location"
-              pinColor="blue"
-            />
-            {nearbyReports.map((report) => (
-              report.latitude &&
-              report.longitude && (
-                <Marker
-                  key={report.id}
-                  coordinate={{
-                    latitude: report.latitude,
-                    longitude: report.longitude,
-                  }}
-                  title={report.title}
-                  pinColor={getSeverityColor(report.severity)}
-                />
-              )
-            ))}
-          </MapView>
-        </View>
-      )}
-
-      {/* My Reports Section */}
+      {/* Recent Reports */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>My Recent Reports</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recent Reports</Text>
+          {userReports.length > 0 && (
+            <View style={styles.sectionCount}>
+              <Text style={styles.sectionCountText}>{userReports.length}</Text>
+            </View>
+          )}
+        </View>
+
         {userReports.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No reports yet. Start by reporting an issue!</Text>
+            <Ionicons name="document-text-outline" size={40} color="#c7c7cc" />
+            <Text style={styles.emptyText}>No reports yet</Text>
+            <Text style={styles.emptySubtext}>Your submitted reports will appear here</Text>
           </View>
         ) : (
-          <FlatList
-            scrollEnabled={false}
-            data={userReports.slice(0, 5)}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.reportCard}>
-                <View style={styles.reportHeader}>
-                  <Text style={styles.reportTitle}>{item.title}</Text>
-                  <View
-                    style={[
-                      styles.severityBadge,
-                      { backgroundColor: getSeverityColor(item.severity) },
-                    ]}
-                  >
-                    <Text style={styles.severityText}>{item.severity}</Text>
+          <View style={[styles.reportsList, userReports.length > 5 && styles.reportsListScrollable]}>
+            {userReports.slice(0, 10).map((item) => {
+              const statusConfig = getStatusConfig(item.status);
+              return (
+                <TouchableOpacity key={item.id} style={styles.reportCard} activeOpacity={0.6} onPress={() => openReportDetail(item)}>
+                  <View style={styles.reportCardLeft}>
+                    <View style={[styles.statusDot, { backgroundColor: statusConfig.color }]} />
                   </View>
-                </View>
-                <Text style={styles.reportDesc}>{item.description.substring(0, 80)}...</Text>
-                <View style={styles.reportFooter}>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusColor(item.status) },
-                    ]}
-                  >
-                    <Text style={styles.statusText}>{item.status}</Text>
+                  <View style={styles.reportCardContent}>
+                    <Text style={styles.reportTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.reportDesc} numberOfLines={1}>{item.description}</Text>
+                    <View style={styles.reportCardFooter}>
+                      <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '15' }]}>
+                        <Ionicons name={statusConfig.icon} size={11} color={statusConfig.color} />
+                        <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                          {statusConfig.label}
+                        </Text>
+                      </View>
+                      <Text style={styles.reportDate}>
+                        {new Date(item.createdAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={styles.reportDate}>
-                    {new Date(item.createdAt).toLocaleDateString()}
-                  </Text>
-                </View>
-              </View>
-            )}
-          />
+                  <Ionicons name="chevron-forward" size={16} color="#c7c7cc" style={styles.reportCardArrow} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         )}
       </View>
 
-      {/* Nearby Reports Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Community Reports</Text>
-        {nearbyReports.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No reports from community yet</Text>
-          </View>
-        ) : (
-          <FlatList
-            scrollEnabled={false}
-            data={nearbyReports.slice(0, 5)}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.reportCard}>
-                <View style={styles.reportHeader}>
-                  <Text style={styles.reportTitle} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <View
-                    style={[
-                      styles.severityBadge,
-                      { backgroundColor: getSeverityColor(item.severity) },
-                    ]}
-                  >
-                    <Text style={styles.severityText}>{item.severity}</Text>
-                  </View>
-                </View>
-                <Text style={styles.reportDesc}>{item.description.substring(0, 80)}...</Text>
-                <View style={styles.reportFooter}>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusColor(item.status) },
-                    ]}
-                  >
-                    <Text style={styles.statusText}>{item.status}</Text>
-                  </View>
-                  <Text style={styles.reportDate}>
-                    {new Date(item.createdAt).toLocaleDateString()}
-                  </Text>
-                </View>
-              </View>
-            )}
-          />
-        )}
-      </View>
-
-      {/* Submit Report Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Report an Issue</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Text style={styles.closeButton}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.formContainer}>
-              <Text style={styles.label}>Issue Title *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="E.g., Pothole on Main Street"
-                value={title}
-                onChangeText={setTitle}
-              />
-
-              <Text style={styles.label}>Description *</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Describe the issue in detail"
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={4}
-              />
-
-              {media && (
-                <View style={styles.mediaPreview}>
-                  {mediaType === "IMAGE" && (
-                    <Image source={{ uri: media }} style={styles.mediaImage} />
-                  )}
-                  <TouchableOpacity
-                    onPress={() => setMedia(null)}
-                    style={styles.removeMediaButton}
-                  >
-                    <Text style={styles.removeMediaText}>Remove Media</Text>
+      {/* Report Detail Modal */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {selectedReport && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Report Details</Text>
+                  <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCloseButton}>
+                    <Ionicons name="close" size={24} color="#666" />
                   </TouchableOpacity>
                 </View>
-              )}
 
-              {mediaType !== "TEXT" && !media && (
-                <TouchableOpacity
-                  style={styles.mediaButton}
-                  onPress={pickMedia}
-                >
-                  <Text style={styles.mediaButtonText}>Choose {mediaType}</Text>
-                </TouchableOpacity>
-              )}
+                <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+                  <View style={styles.modalReportHeader}>
+                    <Text style={styles.modalReportTitle}>{selectedReport.title}</Text>
+                    <View style={[
+                      styles.modalStatusBadge,
+                      { backgroundColor: getStatusConfig(selectedReport.status).color + '20' }
+                    ]}>
+                      <Ionicons name={getStatusConfig(selectedReport.status).icon} size={14} color={getStatusConfig(selectedReport.status).color} />
+                      <Text style={[styles.modalStatusText, { color: getStatusConfig(selectedReport.status).color }]}>
+                        {getStatusConfig(selectedReport.status).label}
+                      </Text>
+                    </View>
+                  </View>
 
-              <View style={styles.buttonContainer}>
-                <TouchableOpacity
-                  style={[styles.submitButton, submitting && styles.disabledButton]}
-                  onPress={handleSubmitReport}
-                  disabled={submitting}
-                >
-                  <Text style={styles.submitButtonText}>
-                    {submitting ? "Submitting..." : "Submit Report"}
-                  </Text>
+                  <View style={styles.modalDetailRow}>
+                    <View style={styles.modalDetailItem}>
+                      <Ionicons name="calendar-outline" size={18} color="#8e8e93" />
+                      <Text style={styles.modalDetailLabel}>Date Reported</Text>
+                      <Text style={styles.modalDetailValue}>
+                        {new Date(selectedReport.createdAt).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {selectedReport.severity && (
+                    <View style={styles.modalDetailRow}>
+                      <View style={styles.modalDetailItem}>
+                        <Ionicons name="warning-outline" size={18} color="#8e8e93" />
+                        <Text style={styles.modalDetailLabel}>Severity</Text>
+                        <Text style={[styles.modalDetailValue, { color: getSeverityColor(selectedReport.severity) }]}>
+                          {selectedReport.severity}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={styles.modalDescriptionSection}>
+                    <Text style={styles.modalSectionLabel}>Description</Text>
+                    <Text style={styles.modalDescription}>{selectedReport.description}</Text>
+                  </View>
+
+                  {selectedReport.latitude && selectedReport.longitude && (
+                    <View style={styles.modalLocationSection}>
+                    <Text style={styles.modalSectionLabel}>Location</Text>
+                    <View style={styles.modalLocationRow}>
+                      <Ionicons name="location-outline" size={16} color="#1E3A8A" />
+                      <Text style={styles.modalLocationText}>
+                      {selectedReport.latitude.toFixed(6)}, {selectedReport.longitude.toFixed(6)}
+                      </Text>
+                    </View>
+                  </View>
+                  )}
+
+                  {selectedReport.multimedia && selectedReport.multimedia.length > 0 && (
+                    <View style={styles.modalMediaSection}>
+                      <Text style={styles.modalSectionLabel}>Attachments</Text>
+                      <View style={styles.modalMediaGrid}>
+                        {selectedReport.multimedia.map((media, index) => (
+                          <View key={index} style={styles.modalMediaItem}>
+                            <Ionicons name="image-outline" size={24} color="#8e8e93" />
+                            <Text style={styles.modalMediaType}>{media.type}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </ScrollView>
+
+                <TouchableOpacity style={styles.modalCloseButtonRow} onPress={() => setModalVisible(false)}>
+                  <Text style={styles.modalCloseButtonText}>Close</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
+              </>
+            )}
           </View>
         </View>
       </Modal>
+
+      <View style={styles.bottomSpacing} />
     </ScrollView>
   );
 }
@@ -528,266 +373,463 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#f2f2f7",
   },
-  header: {
-    backgroundColor: "#007AFF",
-    padding: 16,
-    paddingTop: 24,
+  loadingContainer: {
+    flex: 1,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
+  loadingView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  headerSubtitle: {
+  headerContainer: {
+    marginBottom: 16,
+  },
+  headerView: {
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 32,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  greetingText: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 4,
+    color: "rgba(255, 255, 255, 0.7)",
+    fontWeight: "500",
+    marginBottom: 4,
+    letterSpacing: 0.3,
   },
-  statsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    padding: 8,
-  },
-  statCard: {
-    width: "50%",
-    padding: 8,
-    backgroundColor: "#fff",
-    margin: "auto",
-    borderRadius: 12,
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  statNumber: {
+  userNameText: {
     fontSize: 28,
-    fontWeight: "bold",
-    color: "#007AFF",
+    color: "#fff",
+    fontWeight: "700",
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
-  statLabel: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
+  subtitleText: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.6)",
+    fontWeight: "400",
   },
-  quickActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 8,
-    paddingVertical: 12,
+  avatarContainer: {
+    position: 'relative',
   },
-  actionButton: {
-    width: "25%",
-    padding: 8,
-    alignItems: "center",
+  userAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2.5,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
-  actionIcon: {
-    fontSize: 28,
+  avatarPlaceholder: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#FFD700',
+    borderRadius: 10,
+    width: 22,
+    height: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2.5,
+    borderColor: '#1E3A8A',
+  },
+  heroButtonContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 24,
+    shadowColor: '#ff3b30',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 14,
+  },
+  heroButton: {
+    borderRadius: 24,
+    backgroundColor: '#ff3b30',
+    overflow: 'hidden',
+  },
+  heroContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 16,
+    gap: 16,
+  },
+  heroTextContainer: {
+    flex: 1,
+  },
+  heroButtonTitle: {
+    fontSize: 20,
+    color: "#fff",
+    fontWeight: "800",
+    letterSpacing: -0.3,
     marginBottom: 4,
   },
-  actionLabel: {
-    fontSize: 11,
-    color: "#333",
-    textAlign: "center",
+  heroButtonSubtitle: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.85)",
+    fontWeight: "500",
   },
-  mapSection: {
-    marginHorizontal: 16,
-    marginVertical: 12,
-    borderRadius: 12,
-    overflow: "hidden",
+  heroIconWrapper: {
+    position: 'relative',
+    width: 52,
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroIconInner: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroPulseRing: {
+    position: 'absolute',
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  heroDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginHorizontal: 24,
+  },
+  heroBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+  },
+  heroFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  heroFeatureDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+  },
+  heroFeatureText: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.85)",
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  quickActionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 28,
+    gap: 10,
+  },
+  quickAction: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  quickActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  quickActionText: {
+    fontSize: 12,
+    color: "#1E3A8A",
+    fontWeight: "600",
+  },
+  section: {
+    marginHorizontal: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 8,
+    fontWeight: '700',
+    color: '#1E3A8A',
+    letterSpacing: -0.3,
   },
-  map: {
-    height: 250,
+  sectionCount: {
+    backgroundColor: '#e5e5ea',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 12,
+    minWidth: 28,
+    alignItems: 'center',
   },
-  section: {
-    marginVertical: 8,
-    marginHorizontal: 16,
+  sectionCountText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '600',
   },
   emptyState: {
-    padding: 20,
-    alignItems: "center",
     backgroundColor: "#fff",
-    borderRadius: 12,
+    borderRadius: 20,
+    padding: 48,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: '#f0f0f5',
   },
   emptyText: {
+    fontSize: 16,
+    color: "#1E3A8A",
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  emptySubtext: {
     fontSize: 14,
-    color: "#666",
+    color: "#8e8e93",
     textAlign: "center",
   },
-  reportCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    elevation: 2,
+  reportsList: {
+    gap: 10,
   },
-  reportHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 8,
+  reportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#f0f0f5',
+    gap: 12,
+  },
+  reportCardLeft: {
+    width: 4,
+    height: 40,
+    borderRadius: 2,
+    backgroundColor: '#e5e5ea',
+  },
+  reportCardContent: {
+    flex: 1,
   },
   reportTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    marginRight: 8,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1E3A8A",
+    marginBottom: 3,
   },
   reportDesc: {
     fontSize: 13,
-    color: "#666",
+    color: "#8e8e93",
     marginBottom: 8,
-    lineHeight: 18,
   },
-  reportFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  severityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  severityText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "bold",
+  reportCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
+    gap: 4,
   },
   statusText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "bold",
+    fontSize: 11,
+    fontWeight: "600",
   },
   reportDate: {
     fontSize: 12,
-    color: "#999",
+    color: "#8e8e93",
+  },
+  reportCardArrow: {
+    marginLeft: 4,
+  },
+  reportsListScrollable: {
+    maxHeight: 400,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
   modalContainer: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "90%",
-    paddingBottom: 20,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+    paddingBottom: 34,
   },
   modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f5',
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
+    fontWeight: '700',
+    color: '#1E3A8A',
+    letterSpacing: -0.3,
   },
-  closeButton: {
-    fontSize: 28,
-    color: "#666",
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  formContainer: {
-    paddingHorizontal: 16,
+  modalContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginTop: 12,
-    marginBottom: 6,
+  modalReportHeader: {
+    marginBottom: 20,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
+  modalReportTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1a1a2e',
+    marginBottom: 12,
+    lineHeight: 28,
+  },
+  modalStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 6,
+  },
+  modalStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalDetailRow: {
+    marginBottom: 16,
+  },
+  modalDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#f8f9fb',
+    padding: 14,
+    borderRadius: 12,
+  },
+  modalDetailLabel: {
+    fontSize: 13,
+    color: "#8e8e93",
+    fontWeight: "500",
+    marginLeft: 8,
+  },
+  modalDetailValue: {
     fontSize: 14,
-    color: "#333",
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: "top",
-  },
-  mediaPreview: {
-    marginVertical: 12,
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: "#f0f0f0",
-  },
-  mediaImage: {
-    width: "100%",
-    height: 200,
-  },
-  removeMediaButton: {
-    padding: 8,
-    alignItems: "center",
-  },
-  removeMediaText: {
-    color: "#ff3b30",
+    color: "#1a1a2e",
     fontWeight: "600",
+    marginLeft: 'auto',
   },
-  mediaButton: {
-    backgroundColor: "#e8f4f8",
-    borderWidth: 2,
-    borderColor: "#007AFF",
-    borderStyle: "dashed",
-    borderRadius: 8,
+  modalDescriptionSection: {
+    marginBottom: 20,
+  },
+  modalSectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E3A8A',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  modalDescription: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    backgroundColor: '#f8f9fb',
     padding: 16,
-    alignItems: "center",
-    marginVertical: 12,
+    borderRadius: 12,
   },
-  mediaButtonText: {
-    color: "#007AFF",
-    fontWeight: "600",
+  modalLocationSection: {
+    marginBottom: 20,
   },
-  buttonContainer: {
-    marginTop: 16,
-    gap: 12,
+  modalLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f8f9fb',
+    padding: 14,
+    borderRadius: 12,
   },
-  submitButton: {
-    backgroundColor: "#007AFF",
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
+  modalLocationText: {
+    fontSize: 14,
+    color: '#1E3A8A',
+    fontWeight: '600',
+    fontFamily: 'monospace',
   },
-  disabledButton: {
-    opacity: 0.6,
+  modalMediaSection: {
+    marginBottom: 20,
   },
-  submitButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
+  modalMediaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  modalMediaItem: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  modalMediaType: {
+    fontSize: 10,
+    color: '#8e8e93',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  modalCloseButtonRow: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: '#1E3A8A',
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
     fontSize: 16,
+    color: '#fff',
+    fontWeight: '700',
   },
-  cancelButton: {
-    backgroundColor: "#f0f0f0",
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: "#666",
-    fontWeight: "bold",
-    fontSize: 16,
+  bottomSpacing: {
+    height: 40,
   },
 });

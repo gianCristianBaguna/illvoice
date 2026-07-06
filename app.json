@@ -9,8 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "config": {
-        "googleMapsApiKey": "AIzaSyASTc0FN3JBdR8cmUb51CbuwQlNgl1Y5m0"
-      },
+      "googleMapsApiKey": "AIzaSyASTc0FN3JBdR8cmUb51CbuwQlNgl1Y5m0"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.karinobrutal.Illvoice",
@@ -57,12 +57,19 @@
             "backgroundColor": "#000000"
           }
         }
-      ], 
+      ],
       [
         "expo-image-picker",
         {
           "photosPermission": "Allow access to photos to attach evidence.",
           "cameraPermission": "Allow camera to take evidence photos."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Illvoice to use your location to identify your barangay for reports.",
+          "locationAlwaysAndWhenInUsePermission": "Allow Illvoice to use your location to identify your barangay for reports."
         }
       ],
       [
@@ -72,7 +79,8 @@
           "apiKey": "AIzaSyASTc0FN3JBdR8cmUb51CbuwQlNgl1Y5m0"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -82,7 +90,8 @@
       "router": {},
       "eas": {
         "projectId": "d6f4435b-2dbd-449e-ae17-c7c87d14a711"
-      }
+      },
+      "BACKEND_URL": "http://192.168.5.235:4000"
     }
   }
 }

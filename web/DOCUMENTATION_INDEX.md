@@ -190,9 +190,9 @@ page.tsx (Main)
 │   ├── mockData (getComplaintStats, getComplaintsTrend)
 │   └── Recharts
 ├── ComplaintsTable
-│   └── mockData (mockComplaints)
+│   └── API (fetchComplaints)
 └── ResolutionModal
-    └── mockData (Complaint types, teamMemberList)
+    └── API (fetchTeamMembers)
 ```
 
 ---

@@ -1,47 +1,119 @@
 import cors from "cors";
 import "dotenv/config";
 import express from "express";
-import adminRoutes from "./api/admin/google-signin";
-import authRoutes from "./api/auth/google";
+import adminBarangayRoutes from "./api/admin/barangay";
+import adminGoogleRoutes from "./api/admin/google-signin";
+import adminRoutes from "./api/admin/login";
+import googleAuthRoutes from "./api/auth/google";
+import usernamePasswordAuthRoutes from "./api/auth/username-password";
 import dashboardRoutes from "./api/dashboard/dashboard";
 import reportRoutes from "./api/reports/index";
+import uploadRoutes from "./api/upload/upload";
+import notificationRoutes from "./api/notifications/index";
 import userRoutes from "./api/user/profile";
+import { authenticateToken } from "./middleware/auth";
 import { prisma } from "./prisma";
 
-import dotenv from 'dotenv';
-
-dotenv.config();
 console.log("Backend Google Client ID:", process.env.GOOGLE_CLIENT_ID);
 console.log("OpenAI API Key configured:", !!process.env.OPENAI_API_KEY);
 
 const app = express();
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000", "http://192.168.5.235:4000", "http://192.168.5.235:8081"],
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
-// connect to the database once at startup so we can fail fast
+// connect to the database once at startup - don't exit on failure, allow mock mode
 prisma
   .$connect()
   .then(() => console.log("Prisma connected to database"))
-  .catch((err) => {
-    console.error("Prisma connection error:", err);
-    process.exit(1);
+  .catch((err: any) => {
+    console.warn("Prisma connection error (continuing in mock mode):", err.message);
   });
 
-app.use("/api/auth", authRoutes);
+// Public auth routes
+app.use("/api/auth/google", googleAuthRoutes);
+app.use("/api/auth", usernamePasswordAuthRoutes);
 app.use("/api/reports", reportRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/admin", adminRoutes);
+
+// Dashboard routes (handle auth internally for mobile compatibility)
 app.use("/dashboard", dashboardRoutes);
+
+// Protected routes - user requires valid JWT
+app.use("/api/user", authenticateToken, userRoutes);
+app.use("/api/notifications", authenticateToken, notificationRoutes);
+
+// SSE stream endpoint - handles auth via query param (EventSource doesn't support headers)
+app.get("/api/notifications/stream", async (req: any, res: express.Response) => {
+  // Inline auth for EventSource compatibility
+  const token = req.query.token as string;
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const jwt = require('jsonwebtoken');
+  const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
+
+  try {
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    
+    // Use userId from token for SSE registry
+    const userId = decoded.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
+
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization');
+
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+
+    // Add client to SSE registry
+    const { addClient, removeClient } = require('./sse');
+    addClient(userId, res);
+
+    // Keep alive interval
+    const keepAlive = setInterval(() => {
+      res.write(':\n\n');
+    }, 30000);
+
+    // Clean up on client disconnect
+    req.on('close', () => {
+      clearInterval(keepAlive);
+      removeClient(userId, res);
+    });
+
+    req.on('error', () => {
+      clearInterval(keepAlive);
+      removeClient(userId, res);
+    });
+  } catch (err) {
+    console.error('SSE auth error:', err);
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+});
+
+// Admin routes (with their own internal authorization checks)
+app.use("/api/admin", adminRoutes);
+app.use("/api/admin", adminGoogleRoutes);
+app.use("/api/admin/barangays", adminBarangayRoutes);
+
+// Upload proxy (uses service role - no RLS)
+app.use("/api/upload", uploadRoutes);
 
 const PORT = Number(process.env.PORT)|| 4000;
 
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://192.168.50.203:${PORT}`);
+  console.log(`Server running on http://192.168.5.235:${PORT}`);
 });
 
 // Add this right before your other routes
@@ -73,19 +145,90 @@ app.get("/debug-db", async (req, res) => {
 });
 
 app.get("/seed-test", async (req, res) => {
-  try {
-    const newUser = await prisma.user.create({
-      data: {
-        email: `test-${Date.now()}@example.com`,
-        name: "Test User",
-        role: "RESIDENT"
-      }
-    });
-    res.json({ success: true, user: newUser });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
+   try {
+     const newUser = await prisma.user.create({
+       data: {
+         email: `test-${Date.now()}@example.com`,
+         name: "Test User",
+         role: "RESIDENT"
+       }
+     });
+     res.json({ success: true, user: newUser });
+   } catch (err: any) {
+     res.status(500).json({ error: err.message });
+   }
+ });
+
+app.get("/seed-demo-admin", async (req, res) => {
+   try {
+     const bcrypt = require('bcryptjs');
+     const hashedPassword = await bcrypt.hash('admin123', 10);
+     
+     // First create a barangay if needed
+     let barangay = await prisma.barangay.findFirst({ where: { name: 'Demo Barangay' } });
+     if (!barangay) {
+       barangay = await prisma.barangay.create({
+         data: {
+           name: 'Demo Barangay',
+           latitude: 14.5995,
+           longitude: 120.9842,
+           address: 'Demo Location'
+         }
+       });
+     }
+     
+     const existingUser = await prisma.user.findUnique({ where: { email: 'admin@demo.gov' } });
+     if (existingUser) {
+       await prisma.user.update({
+         where: { email: 'admin@demo.gov' },
+         data: { password: hashedPassword, authMethod: 'USERNAME_PASSWORD', role: 'BARANGAY_OFFICIAL', barangayId: barangay.id }
+       });
+       res.json({ success: true, message: 'Demo admin updated with password and barangay assignment' });
+     } else {
+       const user = await prisma.user.create({
+         data: {
+           email: 'admin@demo.gov',
+           name: 'Demo Admin',
+           password: hashedPassword,
+           authMethod: 'USERNAME_PASSWORD',
+           role: 'BARANGAY_OFFICIAL',
+           barangayId: barangay.id
+         }
+       });
+       res.json({ success: true, user, barangayId: barangay.id });
+     }
+   } catch (err: any) {
+     res.status(500).json({ error: err.message });
+   }
+  });
+
+ app.get("/seed-barangay-admin", async (req, res) => {
+   try {
+     const bcrypt = require('bcryptjs');
+     const hashedPassword = await bcrypt.hash('admin123', 10);
+     const existingUser = await prisma.user.findUnique({ where: { email: 'admin@barangay.gov' } });
+     if (existingUser) {
+       await prisma.user.update({
+         where: { email: 'admin@barangay.gov' },
+         data: { password: hashedPassword, authMethod: 'USERNAME_PASSWORD', role: 'BARANGAY_OFFICIAL' }
+       });
+       res.json({ success: true, message: 'Barangay admin updated with password' });
+     } else {
+       const user = await prisma.user.create({
+         data: {
+           email: 'admin@barangay.gov',
+           name: 'Barangay Admin',
+           password: hashedPassword,
+           authMethod: 'USERNAME_PASSWORD',
+           role: 'BARANGAY_OFFICIAL'
+         }
+       });
+       res.json({ success: true, user });
+     }
+   } catch (err: any) {
+     res.status(500).json({ error: err.message });
+   }
+ });
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {

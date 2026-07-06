@@ -7,30 +7,47 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  name        String?
-  image       String?
-  role        Role     @default(RESIDENT)
-  credibility Float    @default(1.0)
-  createdAt   DateTime @default(now())
-  reports     Report[]
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  phoneNumber   String?
+  image         String?
+  password      String?   // For username/password registration (hashed)
+  authMethod    AuthMethod @default(GOOGLE) // GOOGLE or USERNAME_PASSWORD
+  googleEmail   String?   // Store first Google email to prevent switching
+  role          Role      @default(RESIDENT)
+  credibility   Float     @default(1.0)
+  createdAt     DateTime  @default(now())
+  barangayId    String?
+  barangay      Barangay? @relation(fields: [barangayId], references: [id])
+  reports       Report[]
+  resolvedReports Report[]  @relation("ResolvedBy")
+  notifications  Notification[]
+  Session       Session[]
 }
 
 model Report {
-  id          String       @id @default(cuid())
-  userId      String
-  title       String
-  description String
-  severity    Severity     @default(LOW)
-  status      Status       @default(PENDING)
-  latitude    Float?
-  longitude   Float?
-  createdAt   DateTime     @default(now())
-  barangayId  String?
-  multimedia  Multimedia[]
-  barangay    Barangay?    @relation(fields: [barangayId], references: [id])
-  user        User         @relation(fields: [userId], references: [id])
+  id             String       @id @default(cuid())
+  userId         String
+  title          String
+  description    String
+  severity       Severity     @default(LOW)
+  status         Status       @default(PENDING)
+  latitude       Float?
+  longitude      Float?
+  createdAt      DateTime     @default(now())
+  barangayId     String?
+  resolvedById   String?
+  resolvedAt     DateTime?
+  assignedTo     String?      // Team member name for assignment
+  deadline       DateTime?    // Planned resolution deadline
+  resolutionNotes String?     // Notes when resolving
+  isCredible     Boolean      @default(false) // Whether admin marked as credible
+  multimedia     Multimedia[]
+  notifications  Notification[]
+  barangay       Barangay?    @relation(fields: [barangayId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+  resolvedBy     User?        @relation("ResolvedBy", fields: [resolvedById], references: [id])
 }
 
 model Multimedia {
@@ -44,11 +61,41 @@ model Multimedia {
 }
 
 model Barangay {
-  id        String   @id @default(cuid())
-  name      String
-  latitude  Float
-  longitude Float
-  reports   Report[]
+  id             String   @id @default(cuid())
+  name             String
+  latitude         Float
+  longitude        Float
+  address          String?
+  boundaryPolygon  Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt @default(now())
+  reports          Report[]
+  officials        User[]
+}
+
+model Session {
+  id               String    @id
+  userId           String
+  refreshTokenHash String    @unique
+  deviceInfo       String?
+  revoked          Boolean   @default(false)
+  lastUsedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime
+  User             User      @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String    // STATUS_UPDATE, CREDIBILITY_UPDATE, NEW_REPORT
+  read      Boolean   @default(false)
+  reportId  String?
+  report    Report?   @relation(fields: [reportId], references: [id])
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id])
 }
 
 enum MediaType {
@@ -56,6 +103,11 @@ enum MediaType {
   IMAGE
   VIDEO
   AUDIO
+}
+
+enum AuthMethod {
+  GOOGLE
+  USERNAME_PASSWORD
 }
 
 enum Severity {
