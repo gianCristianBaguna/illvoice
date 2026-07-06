@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { LayoutDashboard, BarChart3, MapPin, Settings, MoreVertical, Menu, X } from 'lucide-react'
+import { useAuth } from '@/contexts/auth-context'
+import { BarChart3, LayoutDashboard, MapPin, Menu, MoreVertical, Settings, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useAuth } from '@/contexts/auth-context'
+import { useState } from 'react'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
@@ -77,7 +77,6 @@ export function Sidebar() {
             alt="ILLVoice logo"
             className="h-8 w-auto object-contain"
           />
-          <span className="font-semibold text-sm">ILLVoice</span>
         </div>
 
         {/* Main Menu */}
