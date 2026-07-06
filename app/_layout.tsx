@@ -1,12 +1,53 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, Button, Text, View } from 'react-native';
 import 'react-native-reanimated';
+
 
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+
+class ErrorBoundary extends React.Component<any, { hasError: boolean }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, info: any) {
+    // Log error remotely if desired
+    // console.error('ErrorBoundary caught', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ fontSize: 18, marginBottom: 12 }}>Something went wrong.</Text>
+          <Text style={{ marginBottom: 20, textAlign: 'center' }}>
+            Returning to the login screen should restore a safe state.
+          </Text>
+          <Button title="Go to Login" onPress={() => {
+            try {
+              // Use expo-router navigation via window.location as a safe fallback
+              // in case hook-based router isn't available in the boundary.
+              (global as any).location && (global as any).location.assign('/(auth)/login');
+            } catch {
+              // no-op
+            }
+          }} />
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
@@ -14,38 +55,16 @@ function RootLayoutNav() {
   const segments = useSegments();
   const router = useRouter();
 
-  useEffect(() => {
-    if (isLoading) return;
-
-    const inAuthGroup = segments[0] === '(auth)';
-    const inTabsGroup = segments[0] === '(tabs)';
-
-    if (!isSignedIn && !inAuthGroup) {
-      router.replace('/(auth)/login');
-      return;
-    }
-
-    if (isSignedIn && !inTabsGroup) {
-      router.replace('/(tabs)/Dashboard');
-    }
-  }, [isLoading, isSignedIn, segments, router]);
-
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0000ff" />
-      </View>
-    );
-  }
-
   return (
-    <ThemeProvider value={colorScheme === 'light' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }} initialRouteName="(auth)">
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider value={colorScheme === 'light' ? DarkTheme : DefaultTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+        </Stack>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
