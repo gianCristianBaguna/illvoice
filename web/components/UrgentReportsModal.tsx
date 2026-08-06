@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { fetchUrgentAlerts, AlertItem } from '@/lib/api';
-import { Complaint } from '@/lib/mockData';
+import { Complaint } from '@/lib/types';
 
 interface UrgentReportsModalProps {
   isOpen: boolean;
@@ -82,25 +82,31 @@ export function UrgentReportsModal({ isOpen, onClose, onViewReport }: UrgentRepo
                       <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
                         HIGH
                       </span>
-                      {alert.barangay && (
+                      {alert.address ? (
+                        <span className="text-xs text-slate-500">{alert.address}</span>
+                      ) : alert.barangay ? (
                         <span className="text-xs text-slate-500">{alert.barangay}</span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => onViewReport({
-                      id: alert.id,
-                      title: alert.title || `Report #${alert.id}`,
-                      description: alert.description,
-                      severity: 'HIGH',
-                      status: 'OPEN',
-                      reportedDate: new Date().toISOString(),
-                      category: '',
-                      userEmail: '',
-                      userName: '',
-                    } as Complaint)}
+                     onClick={() => onViewReport({
+                       id: alert.id,
+                       title: alert.title || `Report #${alert.id}`,
+                       description: alert.description,
+                       severity: 'HIGH',
+                       status: 'OPEN',
+                       reportedDate: new Date().toISOString(),
+                       category: '',
+                       userEmail: '',
+                       userName: '',
+                       address: alert.address || null,
+                       barangay: alert.barangay,
+                       latitude: alert.latitude,
+                       longitude: alert.longitude,
+                     } as Complaint)}
                     className="ml-4 border-slate-300 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-all"
                   >
                     View

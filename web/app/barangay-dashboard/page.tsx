@@ -10,7 +10,7 @@ import { Sidebar } from '@/components/sidebar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth-context';
 import { fetchBarangayInfo, fetchComplaints } from '@/lib/api';
-import { Complaint } from '@/lib/mockData';
+import { Complaint } from '@/lib/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -22,7 +22,7 @@ export default function BarangayDashboardPage() {
   const [viewComplaint, setViewComplaint] = useState<Complaint | null>(null);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
   const [barangayName, setBarangayName] = useState<string | null>(null);
-  const { isAuthenticated, logout, barangayId, adminRole } = useAuth();
+  const { isAuthenticated, logout, barangayId, adminRole, emailVerified } = useAuth();
   const router = useRouter();
 
   const fetchDashboardData = useCallback(async () => {
@@ -50,13 +50,18 @@ export default function BarangayDashboardPage() {
       return;
     }
 
+    if (!emailVerified && adminRole !== 'ADMIN') {
+      router.replace('/verify-email');
+      return;
+    }
+
     if (adminRole === 'ADMIN') {
       router.replace('/dashboard');
       return;
     }
 
     fetchDashboardData();
-  }, [isAuthenticated, adminRole, fetchDashboardData, router]);
+  }, [isAuthenticated, emailVerified, adminRole, fetchDashboardData, router]);
 
   const handleLogout = async () => {
     await logout();
@@ -151,12 +156,23 @@ export default function BarangayDashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2">
+              <div className="lg:col-span-2 space-y-4">
                 <ComplaintsTable
                   complaints={complaints}
                   onViewComplaint={handleViewComplaint}
                   onComplaintsUpdate={handleComplaintsUpdate}
                 />
+                <div className="rounded-3xl border border-red-300 bg-red-50 p-6 shadow-sm">
+                  <div className="flex items-center gap-3 text-red-900">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white">
+                      !
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold">Urgent high severity alerts</p>
+                      <p className="text-xs text-red-700">High priority reports are shown here first to support faster response.</p>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div>
                 <ActivityFeed />

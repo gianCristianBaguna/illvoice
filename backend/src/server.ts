@@ -3,16 +3,19 @@ import "dotenv/config";
 import express from "express";
 import adminBarangayRoutes from "./api/admin/barangay";
 import adminGoogleRoutes from "./api/admin/google-signin";
+import adminKeywordRoutes from "./api/admin/keywords";
 import adminRoutes from "./api/admin/login";
 import googleAuthRoutes from "./api/auth/google";
 import usernamePasswordAuthRoutes from "./api/auth/username-password";
+import verifyEmailRoutes from "./api/auth/verify-email";
 import dashboardRoutes from "./api/dashboard/dashboard";
 import notificationRoutes from "./api/notifications/index";
 import reportRoutes from "./api/reports/index";
 import uploadRoutes from "./api/upload/upload";
 import userRoutes from "./api/user/profile";
-import { authenticateToken } from "./middleware/auth";
+import { authenticateToken, requireEmailVerified } from "./middleware/auth";
 import { prisma } from "./prisma";
+import { getTransporter } from "./utils/email";
 
 console.log("Backend Google Client ID:", process.env.GOOGLE_CLIENT_ID);
 console.log("OpenAI API Key configured:", !!process.env.OPENAI_API_KEY);
@@ -24,7 +27,8 @@ app.use(
       const allowedOrigins = [
         "http://localhost:3000",
         "http://localhost:8081",
-        "https://illvoice-production.up.railway.app",
+        "http://192.168.5.234:4000",
+        "http://localhost:4000",
       ];
 
       if (!origin || allowedOrigins.includes(origin) || /https:\/\/.*\.vercel\.app$/i.test(origin) || /https:\/\/.*\.vercel\.dev$/i.test(origin)) {
@@ -49,14 +53,15 @@ prisma
 // Public auth routes
 app.use("/api/auth/google", googleAuthRoutes);
 app.use("/api/auth", usernamePasswordAuthRoutes);
+app.use("/api/auth/verify-email", verifyEmailRoutes);
 app.use("/api/reports", reportRoutes);
 
 // Dashboard routes (handle auth internally for mobile compatibility)
 app.use("/dashboard", dashboardRoutes);
 
 // Protected routes - user requires valid JWT
-app.use("/api/user", authenticateToken, userRoutes);
-app.use("/api/notifications", authenticateToken, notificationRoutes);
+app.use("/api/user", authenticateToken, requireEmailVerified, userRoutes);
+app.use("/api/notifications", authenticateToken, requireEmailVerified, notificationRoutes);
 
 // SSE stream endpoint - handles auth via query param (EventSource doesn't support headers)
 app.get("/api/notifications/stream", async (req: any, res: express.Response) => {
@@ -117,6 +122,7 @@ app.get("/api/notifications/stream", async (req: any, res: express.Response) => 
 // Admin routes (with their own internal authorization checks)
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminGoogleRoutes);
+app.use("/api/admin", adminKeywordRoutes);
 app.use("/api/admin/barangays", adminBarangayRoutes);
 
 // Upload proxy (uses service role - no RLS)
@@ -125,8 +131,19 @@ app.use("/api/upload", uploadRoutes);
 const PORT = Number(process.env.PORT)|| 4000;
 
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://192.168.5.235:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
+
+const emailTransporter = getTransporter();
+if (emailTransporter) {
+    emailTransporter.verify((error: Error | null, success: boolean) => {
+        if (error) {
+            console.error('[Email] SMTP connection failed:', error);
+        } else {
+            console.log('[Email] SMTP server connected successfully');
+        }
+    });
+}
 
 // Add this right before your other routes
 app.get("/where-am-i", (req, res) => {
@@ -191,22 +208,23 @@ app.get("/seed-demo-admin", async (req, res) => {
      
      const existingUser = await prisma.user.findUnique({ where: { email: 'admin@demo.gov' } });
      if (existingUser) {
-       await prisma.user.update({
-         where: { email: 'admin@demo.gov' },
-         data: { password: hashedPassword, authMethod: 'USERNAME_PASSWORD', role: 'BARANGAY_OFFICIAL', barangayId: barangay.id }
-       });
+        await prisma.user.update({
+          where: { email: 'admin@demo.gov' },
+          data: { password: hashedPassword, authMethod: 'USERNAME_PASSWORD', role: 'BARANGAY_OFFICIAL', barangayId: barangay.id, emailVerified: true }
+        });
        res.json({ success: true, message: 'Demo admin updated with password and barangay assignment' });
      } else {
-       const user = await prisma.user.create({
-         data: {
-           email: 'admin@demo.gov',
-           name: 'Demo Admin',
-           password: hashedPassword,
-           authMethod: 'USERNAME_PASSWORD',
-           role: 'BARANGAY_OFFICIAL',
-           barangayId: barangay.id
-         }
-       });
+        const user = await prisma.user.create({
+          data: {
+            email: 'admin@demo.gov',
+            name: 'Demo Admin',
+            password: hashedPassword,
+            authMethod: 'USERNAME_PASSWORD',
+            role: 'BARANGAY_OFFICIAL',
+            barangayId: barangay.id,
+            emailVerified: true
+          }
+        });
        res.json({ success: true, user, barangayId: barangay.id });
      }
    } catch (err: any) {
@@ -220,27 +238,35 @@ app.get("/seed-demo-admin", async (req, res) => {
      const hashedPassword = await bcrypt.hash('admin123', 10);
      const existingUser = await prisma.user.findUnique({ where: { email: 'admin@barangay.gov' } });
      if (existingUser) {
-       await prisma.user.update({
-         where: { email: 'admin@barangay.gov' },
-         data: { password: hashedPassword, authMethod: 'USERNAME_PASSWORD', role: 'BARANGAY_OFFICIAL' }
-       });
+        await prisma.user.update({
+          where: { email: 'admin@barangay.gov' },
+          data: { password: hashedPassword, authMethod: 'USERNAME_PASSWORD', role: 'BARANGAY_OFFICIAL', emailVerified: true }
+        });
        res.json({ success: true, message: 'Barangay admin updated with password' });
      } else {
-       const user = await prisma.user.create({
-         data: {
-           email: 'admin@barangay.gov',
-           name: 'Barangay Admin',
-           password: hashedPassword,
-           authMethod: 'USERNAME_PASSWORD',
-           role: 'BARANGAY_OFFICIAL'
-         }
-       });
+        const user = await prisma.user.create({
+          data: {
+            email: 'admin@barangay.gov',
+            name: 'Barangay Admin',
+            password: hashedPassword,
+            authMethod: 'USERNAME_PASSWORD',
+            role: 'BARANGAY_OFFICIAL',
+            emailVerified: true
+          }
+        });
        res.json({ success: true, user });
      }
    } catch (err: any) {
      res.status(500).json({ error: err.message });
    }
  });
+
+// Global error handler - always return JSON, never HTML
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({ error: err.message || 'Internal server error' });
+});
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {

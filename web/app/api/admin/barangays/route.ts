@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'https://illvoice-production.up.railway.app';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://192.168.5.234:4000';
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,16 +23,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, latitude, longitude } = await request.json();
+    const { name, latitude, longitude, address, boundaryPolygon } = await request.json();
 
-    if (!name || latitude === undefined || longitude === undefined) {
-      return NextResponse.json({ error: 'Name, latitude, and longitude are required' }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
     const response = await fetch(`${BACKEND_URL}/api/admin/barangays`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, latitude, longitude }),
+      body: JSON.stringify({ name, latitude, longitude, address, boundaryPolygon }),
     });
 
     if (!response.ok) {

@@ -128,7 +128,7 @@ To connect this dashboard to a real database:
 
 1. Replace mock data in `/lib/mockData.ts` with actual API calls
    - the project now ships with `/lib/api.ts` which defines `fetchComplaints` and `updateComplaint`.
-    - configure `NEXT_PUBLIC_BACKEND_URL` in your `.env.local` to point at your running backend (defaults to `http://192.168.5.235:4000`).
+     - configure `NEXT_PUBLIC_BACKEND_URL` in your `.env.local` to point at your running backend (defaults to `http://192.168.5.234:4000`).
 2. Implement backend endpoints for:
    - Fetching complaints
    - Updating complaint status

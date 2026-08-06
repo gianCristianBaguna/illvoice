@@ -4,18 +4,18 @@ import 'leaflet/dist/leaflet.css';
 
 import { Sidebar } from '@/components/sidebar';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { fetchComplaints } from '@/lib/api';
-import { Complaint, SeverityLevel } from '@/lib/mockData';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/auth-context';
+import { fetchComplaints } from '@/lib/api';
+import { Complaint, SeverityLevel } from '@/lib/types';
 import type { Map as LeafletMap, Marker as LeafletMarker } from 'leaflet';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type LeafletModule = typeof import('leaflet');
 
-const DEFAULT_CENTER: [number, number] = [14.5995, 120.9842];
+const DEFAULT_CENTER: [number, number] = [10.7202, 122.5621];
 
 const severityInfo: Record<SeverityLevel, { label: string; className: string; description: string; weight: number }> = {
   HIGH: {
@@ -39,9 +39,10 @@ const severityInfo: Record<SeverityLevel, { label: string; className: string; de
 };
 
 function getReportLocation(report: Complaint) {
+  if (report.address) return report.address;
   if (report.barangay) return report.barangay;
   if (typeof report.latitude === 'number' && typeof report.longitude === 'number') {
-    return 'Coordinates recorded';
+    return 'Location recorded';
   }
   return 'Location not recorded';
 }

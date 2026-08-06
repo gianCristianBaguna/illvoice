@@ -1,23 +1,53 @@
+import fs from "fs";
 import fetch from "node-fetch";
-import { VisionResult, VisionProvider } from "./interface";
+import { getRuleBasedSeverity } from "../keyword-store";
+import { VisionProvider, VisionResult } from "./interface";
+
+async function resolveImageUrl(imageUrl: string): Promise<string> {
+  if (!imageUrl) return imageUrl;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("data:")) {
+    return imageUrl;
+  }
+  try {
+    if (fs.existsSync(imageUrl)) {
+      const buffer = fs.readFileSync(imageUrl);
+      const ext = imageUrl.split(".").pop()?.toLowerCase() || "png";
+      const mimeMap: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
+      const mime = mimeMap[ext] || "image/png";
+      return `data:${mime};base64,${buffer.toString("base64")}`;
+    }
+  } catch {
+    console.error("Failed to read local image file:", imageUrl);
+  }
+  return imageUrl;
+}
 
 async function extractVideoFrames(videoUrl: string): Promise<string[]> {
-  const response = await fetch(videoUrl);
-  if (!response.ok) {
-    console.error("Failed to fetch video:", response.status);
-    return [];
-  }
-
   const fs = require("fs");
   const { spawn } = require("child_process");
   const path = require("path");
   const { tmpdir } = require("os");
 
-  const videoBuffer = await response.arrayBuffer();
+  let videoBuffer: Buffer;
+  if (videoUrl.startsWith("http://") || videoUrl.startsWith("https://")) {
+    const response = await fetch(videoUrl);
+    if (!response.ok) {
+      console.error("Failed to fetch video:", response.status);
+      return [];
+    }
+    videoBuffer = Buffer.from(await response.arrayBuffer());
+  } else {
+    try {
+      videoBuffer = fs.readFileSync(videoUrl);
+    } catch {
+      console.error("Failed to read local video file:", videoUrl);
+      return [];
+    }
+  }
   const tmpVideoPath = path.join(tmpdir(), `video_${Date.now()}.mp4`);
   const framesDir = path.join(tmpdir(), `frames_${Date.now()}`);
 
-  fs.writeFileSync(tmpVideoPath, Buffer.from(videoBuffer));
+  fs.writeFileSync(tmpVideoPath, videoBuffer);
   fs.mkdirSync(framesDir, { recursive: true });
 
   return new Promise((resolve) => {
@@ -119,7 +149,8 @@ async function analyzeWithOllama(imageBase64: string, prompt: string): Promise<V
 
 export const ollamaVisionProvider: VisionProvider = {
   async analyzeImage(image: string): Promise<VisionResult> {
-    const base64 = image.startsWith("data:") ? getBase64FromDataUri(image) : image;
+    const resolved = await resolveImageUrl(image);
+    const base64 = resolved.startsWith("data:") ? getBase64FromDataUri(resolved) : resolved;
 
     const prompt = `Analyze this image for public safety hazards. Return JSON with:
 {
@@ -172,17 +203,8 @@ Look for: fire, flooding, structural damage, accidents, debris, dangerous condit
       }
     }
 
-    const { SEVERITY_KEYWORDS } = require("../keywords");
     const combinedHazards = allHazards.flat();
-    let ruleBasedSeverity = "LOW";
-
-    const text = combinedDescription.toLowerCase();
-    const highMatch = SEVERITY_KEYWORDS.HIGH.some((k: string) => text.includes(k.toLowerCase()));
-    if (highMatch) ruleBasedSeverity = "HIGH";
-    else {
-      const moderateMatch = SEVERITY_KEYWORDS.MODERATE.some((k: string) => text.includes(k.toLowerCase()));
-      if (moderateMatch) ruleBasedSeverity = "MODERATE";
-    }
+    const ruleBasedSeverity = await getRuleBasedSeverity(combinedDescription, "", "");
 
     return {
       description: combinedDescription,

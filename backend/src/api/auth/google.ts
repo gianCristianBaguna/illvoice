@@ -2,12 +2,14 @@ import { Router, type Request, type Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../../prisma';
+import { generateVerificationCode, sendVerificationEmail } from '../../utils/email';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
 const primaryClientId = process.env.GOOGLE_CLIENT_ID;
 const fallbackClientId = process.env.GOOGLE_IOS_CLIENT_ID;
-function signUserToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null }) {
+
+function signUserToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null; emailVerified: boolean }) {
   return jwt.sign(
     {
       userId: user.id,
@@ -16,6 +18,7 @@ function signUserToken(user: { id: string; email: string; name: string | null; r
       role: user.role,
       barangayId: user.barangayId,
       barangayName: user.barangayName || null,
+      emailVerified: user.emailVerified,
     },
     JWT_SECRET,
     { expiresIn: '7d' }
@@ -85,13 +88,16 @@ router.post('/', async (req: Request, res: Response) => {
         },
       });
 
-      const token = jwt.sign(
-        { userId: user.id, email: user.email, name: user.name, role: user.role },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      );
+      const token = signUserToken({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        barangayId: user.barangayId,
+        emailVerified: user.emailVerified,
+      });
 
-      return res.json({ user: { id: user.id, email: user.email, name: user.name, phoneNumber: user.phoneNumber, authMethod: user.authMethod }, token });
+      return res.json({ user: { id: user.id, email: user.email, name: user.name, phoneNumber: user.phoneNumber, authMethod: user.authMethod, emailVerified: user.emailVerified }, token });
     }
 
     // Create new user
@@ -105,13 +111,29 @@ router.post('/', async (req: Request, res: Response) => {
       },
     });
 
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, name: user.name, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const code = generateVerificationCode();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    return res.json({ user: { id: user.id, email: user.email, name: user.name, phoneNumber: user.phoneNumber, authMethod: user.authMethod }, token });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationToken: code,
+        verificationTokenExpiry: expiry,
+      },
+    });
+
+    await sendVerificationEmail(user.email, code, user.name || undefined);
+
+    const token = signUserToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      barangayId: user.barangayId,
+      emailVerified: user.emailVerified,
+    });
+
+      return res.json({ user: { id: user.id, email: user.email, name: user.name, phoneNumber: user.phoneNumber, authMethod: user.authMethod, emailVerified: user.emailVerified }, token });
   } catch (err: any) {
     console.error("Google auth error:", err);
     console.error("Error message:", err.message);

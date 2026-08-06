@@ -1,7 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
+import fs from "fs";
 import fetch from "node-fetch";
-import { SEVERITY_KEYWORDS } from "../keywords";
-import { VisionResult, VisionProvider, TextProvider } from "./interface";
+import { getRuleBasedSeverity } from "../keyword-store";
+import { TextProvider, VisionProvider, VisionResult } from "./interface";
 
 let ai: GoogleGenAI | null = null;
 
@@ -16,6 +17,25 @@ function getGenAIClient(): GoogleGenAI | null {
     });
   }
   return ai;
+}
+
+async function resolveImageUrl(imageUrl: string): Promise<string> {
+  if (!imageUrl) return imageUrl;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("data:")) {
+    return imageUrl;
+  }
+  try {
+    if (fs.existsSync(imageUrl)) {
+      const buffer = fs.readFileSync(imageUrl);
+      const ext = imageUrl.split(".").pop()?.toLowerCase() || "png";
+      const mimeMap: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
+      const mime = mimeMap[ext] || "image/png";
+      return `data:${mime};base64,${buffer.toString("base64")}`;
+    }
+  } catch {
+    console.error("Failed to read local image file:", imageUrl);
+  }
+  return imageUrl;
 }
 
 function getBase64FromDataUri(dataUri: string): string {
@@ -57,14 +77,20 @@ async function analyzeImageWithGenAI(imageUrl: string): Promise<VisionResult> {
       base64Image = getBase64FromDataUri(imageUrl);
       mimeType = getMimeType(imageUrl);
     } else {
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        console.error("Failed to fetch image:", response.status);
-        return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
+      const resolvedUrl = await resolveImageUrl(imageUrl);
+      if (resolvedUrl.startsWith("data:")) {
+        base64Image = getBase64FromDataUri(resolvedUrl);
+        mimeType = getMimeType(resolvedUrl);
+      } else {
+        const response = await fetch(resolvedUrl);
+        if (!response.ok) {
+          console.error("Failed to fetch image:", response.status);
+          return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
+        }
+        const buffer = await response.arrayBuffer();
+        base64Image = Buffer.from(buffer).toString("base64");
+        mimeType = "image/jpeg";
       }
-      const buffer = await response.arrayBuffer();
-      base64Image = Buffer.from(buffer).toString("base64");
-      mimeType = "image/jpeg";
     }
 
     const result = await genai.models.generateContent({
@@ -122,17 +148,26 @@ export const geminiVisionProvider: VisionProvider = {
     const { spawn } = require("child_process");
 
     try {
-      const response = await fetch(videoUrl);
-      if (!response.ok) {
-        console.error("Failed to fetch video:", response.status);
-        return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
+      let videoBuffer: Buffer;
+      if (videoUrl.startsWith("http://") || videoUrl.startsWith("https://")) {
+        const response = await fetch(videoUrl);
+        if (!response.ok) {
+          console.error("Failed to fetch video:", response.status);
+          return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
+        }
+        videoBuffer = Buffer.from(await response.arrayBuffer());
+      } else {
+        try {
+          videoBuffer = fs.readFileSync(videoUrl);
+        } catch {
+          return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
+        }
       }
 
-      const videoBuffer = await response.arrayBuffer();
       const tmpVideoPath = path.join(os.tmpdir(), `video_${Date.now()}.mp4`);
       const framesDir = path.join(os.tmpdir(), `frames_${Date.now()}`);
 
-      fs.writeFileSync(tmpVideoPath, Buffer.from(videoBuffer));
+      fs.writeFileSync(tmpVideoPath, videoBuffer);
       fs.mkdirSync(framesDir, { recursive: true });
 
       return new Promise(async (resolve) => {
@@ -189,7 +224,7 @@ export const geminiVisionProvider: VisionProvider = {
             resolve({
               description: combinedDescription,
               hazards: allHazards.flat(),
-              severity_indicator: getRuleBasedSeverity(combinedDescription, "", ""),
+              severity_indicator: await getRuleBasedSeverity(combinedDescription, "", ""),
             });
           } catch (err: any) {
             console.error("Video processing error:", err.message);
@@ -208,21 +243,6 @@ export const geminiVisionProvider: VisionProvider = {
     }
   },
 };
-
-function getRuleBasedSeverity(title: string, description: string, audioText?: string): string {
-  const text = `${title} ${description} ${audioText || ""}`.toLowerCase();
-
-  const highMatch = SEVERITY_KEYWORDS.HIGH.some(k => text.includes(k.toLowerCase()));
-  if (highMatch) return "HIGH";
-
-  const moderateMatch = SEVERITY_KEYWORDS.MODERATE.some(k => text.includes(k.toLowerCase()));
-  if (moderateMatch) return "MODERATE";
-
-  const lowMatch = SEVERITY_KEYWORDS.LOW.some(k => text.includes(k.toLowerCase()));
-  if (lowMatch) return "LOW";
-
-  return "LOW";
-}
 
 export const geminiTextProvider: TextProvider = {
   async generateInsights(

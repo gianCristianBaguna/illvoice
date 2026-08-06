@@ -11,6 +11,27 @@ import { Ionicons } from '@expo/vector-icons';
 
 type ReportMethod = 'TEXT' | 'IMAGE' | 'VIDEO' | 'AUDIO';
 
+async function reverseGeocode(latitude: number, longitude: number): Promise<string> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'ILLVoice/1.0',
+        'Accept-Language': 'en',
+      },
+    });
+
+    if (!res.ok) {
+      return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    }
+
+    const data: any = await res.json();
+    return data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+  } catch {
+    return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+  }
+}
+
 interface SubmittedReport {
   id: string;
   title: string;
@@ -18,6 +39,7 @@ interface SubmittedReport {
   method: ReportMethod;
   latitude: number;
   longitude: number;
+  address?: string;
   mediaUrl?: string;
   createdAt: string;
   status: 'PENDING';
@@ -28,6 +50,7 @@ export default function ReportScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [address, setAddress] = useState<string>('');
   const [media, setMedia] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'stopped'>('idle');
@@ -55,10 +78,10 @@ export default function ReportScreen() {
         }
 
         if (position) {
-          setLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
+          const { latitude, longitude } = position.coords;
+          setLocation({ latitude, longitude });
+          const resolvedAddress = await reverseGeocode(latitude, longitude);
+          setAddress(resolvedAddress);
         }
       } catch {
         console.warn('Location error');
@@ -186,6 +209,7 @@ export default function ReportScreen() {
         description: method === 'TEXT' ? description : "",
         latitude: location.latitude,
         longitude: location.longitude,
+        address: address || undefined,
         mediaType: method === 'TEXT' ? undefined : method,
         mediaUrl: method === 'TEXT' ? undefined : mediaUrl,
       };
@@ -214,6 +238,7 @@ export default function ReportScreen() {
         method,
         latitude: location.latitude,
         longitude: location.longitude,
+        address: address || undefined,
         mediaUrl: method !== 'TEXT' ? mediaUrl : undefined,
         createdAt: new Date().toISOString(),
         status: 'PENDING',
@@ -232,6 +257,7 @@ export default function ReportScreen() {
     setMedia(null);
     setMethod('TEXT');
     setRecordingStatus('idle');
+    setAddress('');
   };
 
   const methods: { key: ReportMethod; label: string; description: string; icon: string; color: string }[] = [
@@ -310,7 +336,7 @@ export default function ReportScreen() {
             <View style={styles.recapRow}>
               <Text style={styles.recapLabel}>Location</Text>
               <Text style={[styles.recapValue, { fontFamily: 'monospace' }]}>
-                {submittedReport.latitude.toFixed(6)}, {submittedReport.longitude.toFixed(6)}
+                {submittedReport.address || `${submittedReport.latitude.toFixed(6)}, ${submittedReport.longitude.toFixed(6)}`}
               </Text>
             </View>
             {submittedReport.mediaUrl && submittedReport.mediaUrl !== 'N/A' && (
@@ -406,8 +432,8 @@ export default function ReportScreen() {
           {location && (
             <View style={styles.locationRow}>
               <Ionicons name="location" size={16} color="#1E3A8A" />
-              <Text style={styles.locationText}>
-                {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+              <Text style={styles.locationText} numberOfLines={1}>
+                {address || `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`}
               </Text>
             </View>
           )}

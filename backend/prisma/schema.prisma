@@ -7,23 +7,28 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  phoneNumber   String?
-  image         String?
-  password      String?   // For username/password registration (hashed)
-  authMethod    AuthMethod @default(GOOGLE) // GOOGLE or USERNAME_PASSWORD
-  googleEmail   String?   // Store first Google email to prevent switching
-  role          Role      @default(RESIDENT)
-  credibility   Float     @default(1.0)
-  createdAt     DateTime  @default(now())
-  barangayId    String?
-  barangay      Barangay? @relation(fields: [barangayId], references: [id])
-  reports       Report[]
-  resolvedReports Report[]  @relation("ResolvedBy")
-  notifications  Notification[]
-  Session       Session[]
+  id                     String    @id @default(cuid())
+  email                  String    @unique
+  name                   String?
+  phoneNumber            String?
+  image                  String?
+  password               String?   // For username/password registration (hashed)
+  authMethod             AuthMethod @default(GOOGLE) // GOOGLE or USERNAME_PASSWORD
+  googleEmail            String?   // Store first Google email to prevent switching
+  role                   Role      @default(RESIDENT)
+  credibility            Float     @default(1.0)
+  emailVerified          Boolean   @default(false)
+  verificationToken      String?   @unique
+  verificationTokenExpiry DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt @default(now())
+  barangayId             String?
+  barangay               Barangay? @relation(fields: [barangayId], references: [id])
+  reports                Report[]
+  resolvedReports        Report[]  @relation("ResolvedBy")
+  notifications          Notification[]
+  Session                Session[]
+  severityKeywords       SeverityKeyword[]
 }
 
 model Report {
@@ -33,6 +38,8 @@ model Report {
   description    String
   severity       Severity     @default(LOW)
   status         Status       @default(PENDING)
+  category       String?
+  address        String?      // Human-readable address from reverse geocoding
   latitude       Float?
   longitude      Float?
   createdAt      DateTime     @default(now())
@@ -42,12 +49,28 @@ model Report {
   assignedTo     String?      // Team member name for assignment
   deadline       DateTime?    // Planned resolution deadline
   resolutionNotes String?     // Notes when resolving
-  isCredible     Boolean      @default(false) // Whether admin marked as credible
+  isCredible     Boolean      @default(false)
+  isFlagged      Boolean      @default(false)
+  flagType       String?
+  flagReason     String?
+  fraudCheck     Json?
+  flaggedAt      DateTime?
   multimedia     Multimedia[]
   notifications  Notification[]
   barangay       Barangay?    @relation(fields: [barangayId], references: [id])
   user           User         @relation(fields: [userId], references: [id])
   resolvedBy     User?        @relation("ResolvedBy", fields: [resolvedById], references: [id])
+  severityDataset SeverityDataset?
+}
+
+model SeverityKeyword {
+  id         String    @id @default(cuid())
+  keyword    String    @unique
+  severity   Severity
+  addedById  String?
+  addedBy    User?     @relation(fields: [addedById], references: [id])
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
 
 model Multimedia {
@@ -96,6 +119,21 @@ model Notification {
   report    Report?   @relation(fields: [reportId], references: [id])
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id])
+}
+
+model SeverityDataset {
+  id         String    @id @default(cuid())
+  reportId   String    @unique
+  report     Report    @relation(fields: [reportId], references: [id])
+  source     String    @default("credible_severity_dataset")
+  severity   Severity
+  title      String
+  description String
+  address    String?
+  barangayId String?
+  analysis   Json?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
 
 enum MediaType {

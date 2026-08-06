@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
   try {
     const { email, password, role } = await request.json();
 
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'https://illvoice-production.up.railway.app';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://192.168.5.234:4000';
     const response = await fetch(`${backendUrl}/api/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -57,7 +57,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, token: data.token, email: data.email, name: data.name, role: data.role, barangayId: data.barangayId || null });
+    if (data.emailVerified !== undefined) {
+      (await cookies()).set('emailVerified', String(data.emailVerified), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7,
+        path: '/',
+      });
+    }
+
+    return NextResponse.json({ success: true, token: data.token, email: data.email, name: data.name, role: data.role, barangayId: data.barangayId || null, emailVerified: data.emailVerified });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Login failed' }, { status: 500 });
   }

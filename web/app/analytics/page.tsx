@@ -13,7 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { fetchComplaints } from '@/lib/api'
-import { Complaint } from '@/lib/mockData'
+import { Complaint } from '@/lib/types'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import {

@@ -1,7 +1,7 @@
-import { Complaint, TeamMember } from './mockData';
+import { Complaint, TeamMember } from './types';
 
 export const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'https://illvoice-production.up.railway.app';
+  process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://192.168.5.234:4000';
 
 export async function getAdminToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
@@ -48,10 +48,15 @@ function mapReportToComplaint(r: any): Complaint {
     })) || [],
     latitude: r.latitude,
     longitude: r.longitude,
+    address: r.address || null,
     barangay: r.barangay?.name || null,
     resolvedBy: r.resolvedBy?.name || null,
     resolvedAt: r.resolvedAt || null,
     isCredible: r.isCredible || false,
+    isFlagged: r.isFlagged || false,
+    flagType: r.flagType || null,
+    flagReason: r.flagReason || null,
+    fraudCheck: r.fraudCheck || null,
   };
 }
 
@@ -105,6 +110,7 @@ export interface AlertItem {
   description: string;
   severity: 'HIGH';
   barangay: string;
+  address: string | null;
   latitude: number | null;
   longitude: number | null;
 }
@@ -119,6 +125,7 @@ export async function updateComplaint(complaint: Complaint): Promise<Complaint> 
   if (complaint.deadline !== undefined) payload.deadline = complaint.deadline;
   if (complaint.resolutionNotes !== undefined) payload.resolutionNotes = complaint.resolutionNotes;
   if (complaint.isCredible !== undefined) payload.isCredible = complaint.isCredible;
+  if (complaint.category !== undefined) payload.category = complaint.category;
 
   const res = await fetch(`${BACKEND_URL}/api/reports/${complaint.id}`, {
     method: 'PATCH',

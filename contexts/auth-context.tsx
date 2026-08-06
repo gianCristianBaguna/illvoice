@@ -8,6 +8,7 @@ interface AuthContextType {
   userPhone: string | null;
   idToken: string | null;
   authMethod: 'GOOGLE' | 'USERNAME_PASSWORD' | null;
+  emailVerified: boolean;
   isLoading: boolean;
   isSignedIn: boolean;
   setUserEmail: (email: string) => void;
@@ -16,6 +17,7 @@ interface AuthContextType {
   setUserPhone: (phone: string | null) => void;
   setIdToken: (token: string | null) => void;
   setAuthMethod: (method: 'GOOGLE' | 'USERNAME_PASSWORD') => void;
+  setEmailVerified: (verified: boolean) => void;
   signOut: () => Promise<void>;
   restoreToken: () => Promise<void>;
 }
@@ -29,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userPhone, setUserPhone] = useState<string | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
   const [authMethod, setAuthMethod] = useState<'GOOGLE' | 'USERNAME_PASSWORD' | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Restore token on app startup
@@ -43,16 +46,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedPhoto = await AsyncStorage.getItem('userPhoto');
       const storedPhone = await AsyncStorage.getItem('userPhone');
       const storedToken = await AsyncStorage.getItem('idToken');
-      const storedMethod = (await AsyncStorage.getItem('authMethod')) as 'GOOGLE' | 'USERNAME_PASSWORD' | null;
+const storedMethod = (await AsyncStorage.getItem('authMethod')) as 'GOOGLE' | 'USERNAME_PASSWORD' | null;
+        const storedVerified = await AsyncStorage.getItem('emailVerified');
 
-      if (storedEmail && storedName) {
-        setUserEmail(storedEmail);
-        setUserName(storedName);
-        storedPhoto && setUserPhoto(storedPhoto);
-        storedPhone && setUserPhone(storedPhone);
-        storedToken && setIdToken(storedToken);
-        storedMethod && setAuthMethod(storedMethod);
-      }
+        if (storedEmail && storedName) {
+          setUserEmail(storedEmail);
+          setUserName(storedName);
+          storedPhoto && setUserPhoto(storedPhoto);
+          storedPhone && setUserPhone(storedPhone);
+          storedToken && setIdToken(storedToken);
+          storedMethod && setAuthMethod(storedMethod);
+          setEmailVerified(storedVerified === 'true');
+        }
     } catch (e) {
       console.error('Failed to restore token:', e);
     } finally {
@@ -102,6 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem('authMethod', method).catch(e => console.error('Failed to save auth method:', e));
   };
 
+  const handleSetEmailVerified = (verified: boolean) => {
+    setEmailVerified(verified);
+    AsyncStorage.setItem('emailVerified', String(verified)).catch(e => console.error('Failed to save email verified:', e));
+  };
+
   const signOut = async () => {
     setUserEmail(null);
     setUserName(null);
@@ -109,8 +119,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserPhone(null);
     setIdToken(null);
     setAuthMethod(null);
+    setEmailVerified(false);
     try {
-      await AsyncStorage.multiRemove(['userEmail', 'userName', 'userPhoto', 'userPhone', 'idToken', 'authMethod']);
+      await AsyncStorage.multiRemove(['userEmail', 'userName', 'userPhoto', 'userPhone', 'idToken', 'authMethod', 'emailVerified']);
     } catch (e) {
       console.error('Failed to clear storage:', e);
     }
@@ -119,25 +130,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isSignedIn = !!userEmail;
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        userEmail, 
-        userName,
-        userPhoto,
-        userPhone,
-        idToken,
-        authMethod,
-        isLoading,
-        isSignedIn,
-        setUserEmail: handleSetUserEmail, 
-        setUserName: handleSetUserName,
-        setUserPhoto: handleSetUserPhoto,
-        setUserPhone: handleSetUserPhone,
-        setIdToken: handleSetIdToken,
-        setAuthMethod: handleSetAuthMethod,
-        signOut,
-        restoreToken,
-      }}
+<AuthContext.Provider 
+       value={{ 
+         userEmail, 
+         userName,
+         userPhoto,
+         userPhone,
+         idToken,
+         authMethod,
+         emailVerified,
+         isLoading,
+         isSignedIn,
+         setUserEmail: handleSetUserEmail, 
+         setUserName: handleSetUserName,
+         setUserPhoto: handleSetUserPhoto,
+         setUserPhone: handleSetUserPhone,
+         setIdToken: handleSetIdToken,
+         setAuthMethod: handleSetAuthMethod,
+         setEmailVerified: handleSetEmailVerified,
+         signOut,
+         restoreToken,
+       }}
     >
       {children}
     </AuthContext.Provider>

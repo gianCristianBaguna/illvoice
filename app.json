@@ -91,7 +91,7 @@
       "eas": {
         "projectId": "d6f4435b-2dbd-449e-ae17-c7c87d14a711"
       },
-      "BACKEND_URL": "https://illvoice-production.up.railway.app"
+      "BACKEND_URL": "http://192.168.5.234:4000"
     }
   }
 }

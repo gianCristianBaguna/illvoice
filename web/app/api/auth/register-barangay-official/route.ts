@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
     }
 
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'https://illvoice-production.up.railway.app';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://192.168.5.234:4000';
     const token = request.cookies.get('adminToken')?.value;
 
     const response = await fetch(`${backendUrl}/api/admin/register-barangay-official`, {
@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
       name: data.name,
       role: data.role,
       barangayId: data.barangayId,
+      emailVerified: data.emailVerified,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Registration failed' }, { status: 500 });

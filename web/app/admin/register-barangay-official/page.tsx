@@ -96,8 +96,8 @@ export default function RegisterBarangayOfficialPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Register Barangay Official</CardTitle>
-          <CardDescription>Create an account for a barangay official</CardDescription>
+          <CardTitle className="text-black">Register Barangay Official</CardTitle>
+          <CardDescription className="text-black">Create an account for a barangay official</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleRegister} className="space-y-4">
@@ -108,7 +108,7 @@ export default function RegisterBarangayOfficialPage() {
             )}
 
             <div>
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-black">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -116,24 +116,26 @@ export default function RegisterBarangayOfficialPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="official@barangay.gov"
                 required
+                className="bg-white dark:bg-white text-black"
               />
             </div>
 
             <div>
-              <Label htmlFor="fullName">Full Name</Label>
+              <Label htmlFor="fullName" className="text-black">Full Name</Label>
               <Input
                 id="fullName"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Juan Dela Cruz"
                 required
+                className="bg-white dark:bg-white text-black"
               />
             </div>
 
             <div>
-              <Label htmlFor="barangay">Barangay</Label>
+              <Label htmlFor="barangay" className="text-black">Barangay</Label>
               <Select value={selectedBarangayId} onValueChange={setSelectedBarangayId} required>
-                <SelectTrigger>
+                <SelectTrigger id="barangay" className="bg-white dark:bg-white text-black">
                   <SelectValue placeholder="Select a barangay" />
                 </SelectTrigger>
                 <SelectContent>
@@ -147,7 +149,7 @@ export default function RegisterBarangayOfficialPage() {
             </div>
 
             <div>
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-black">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -155,10 +157,11 @@ export default function RegisterBarangayOfficialPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
+                className="bg-white dark:bg-white text-black"
               />
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full">
+            <Button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700">
               {loading ? 'Registering...' : 'Register Barangay Official'}
             </Button>
           </form>

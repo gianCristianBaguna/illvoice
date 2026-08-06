@@ -31,7 +31,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { userEmail, userName, userPhoto, idToken, signOut } = useAuth();
+  const { userEmail, userName, userPhoto, idToken, signOut, emailVerified, setEmailVerified } = useAuth();
 
   const fetchUserProfile = useCallback(async () => {
     if (!userEmail) {
@@ -55,6 +55,31 @@ export default function ProfileScreen() {
       if (response.ok) {
         const data = await response.json();
         setProfile(data);
+      } else if (response.status === 403) {
+        const data = await response.json().catch(() => ({}));
+        if (data.error === 'EMAIL_NOT_VERIFIED') {
+          setProfile({
+            id: "unknown",
+            email: userEmail,
+            name: userName || "Community Member",
+            credibility: 0,
+            totalReports: 0,
+            resolvedReports: 0,
+            credibleReports: 0,
+            pendingReports: 0,
+          });
+        } else {
+          setProfile({
+            id: "unknown",
+            email: userEmail,
+            name: userName || "Community Member",
+            credibility: 0,
+            totalReports: 0,
+            resolvedReports: 0,
+            credibleReports: 0,
+            pendingReports: 0,
+          });
+        }
       } else {
         setProfile({
           id: "unknown",
@@ -142,6 +167,62 @@ export default function ProfileScreen() {
     );
   }
 
+  const handleVerifyEmail = () => {
+    router.replace('/(auth)/verify-email');
+  };
+
+  if (!emailVerified) {
+    return (
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.headerContainer}>
+          <View style={[styles.headerView, { backgroundColor: '#1E3A8A' }]}>
+            <View style={styles.headerContent}>
+              <View style={styles.headerLeft}>
+                <Text style={styles.greetingText}>My Profile</Text>
+                <Text style={styles.userNameText}>{userName || "User"}</Text>
+              </View>
+              <View style={styles.avatarContainer}>
+                {userPhoto ? (
+                  <Image source={{ uri: userPhoto }} style={styles.userAvatar} />
+                ) : (
+                  <View style={[styles.userAvatar, styles.avatarPlaceholder]}>
+                    <Ionicons name="person" size={28} color="#fff" />
+                  </View>
+                )}
+                {emailVerified && (
+                  <View style={styles.verifiedBadge}>
+                    <Ionicons name="checkmark" size={12} color="#fff" />
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.verificationBlocked}>
+          <Ionicons name="shield-warning" size={64} color="#FF9500" />
+          <Text style={styles.verificationBlockedTitle}>Email Verification Required</Text>
+          <Text style={styles.verificationBlockedSub}>
+            Please verify your email address to access all profile features
+          </Text>
+          <TouchableOpacity style={styles.verifyEmailButton} onPress={handleVerifyEmail}>
+            <Text style={styles.verifyEmailButtonText}>Verify Email</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.signOutButtonUnverified} onPress={handleSignOut}>
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
@@ -161,6 +242,11 @@ export default function ProfileScreen() {
               ) : (
                 <View style={[styles.userAvatar, styles.avatarPlaceholder]}>
                   <Ionicons name="person" size={28} color="#fff" />
+                </View>
+              )}
+              {emailVerified && (
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark" size={12} color="#fff" />
                 </View>
               )}
             </View>
@@ -224,6 +310,16 @@ export default function ProfileScreen() {
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Email</Text>
                 <Text style={styles.infoValue}>{profile.email}</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Email Status</Text>
+                <View style={styles.emailStatusContainer}>
+                  <View style={[styles.emailStatusDot, { backgroundColor: emailVerified ? '#34c759' : '#FF9500' }]} />
+                  <Text style={[styles.infoValue, { color: emailVerified ? '#34c759' : '#FF9500' }]}>
+                    {emailVerified ? 'Verified' : 'Unverified'}
+                  </Text>
+                </View>
               </View>
               <View style={styles.divider} />
               <View style={styles.infoRow}>
@@ -336,6 +432,73 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  verifiedBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#34c759',
+    borderRadius: 10,
+    width: 22,
+    height: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2.5,
+    borderColor: '#1E3A8A',
+  },
+  verificationBlocked: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 60,
+  },
+  verificationBlockedTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1a1a2e',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  verificationBlockedSub: {
+    fontSize: 14,
+    color: '#8e8e93',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  verificationBannerText: {
+    flex: 1,
+  },
+  verificationBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FF6D00',
+  },
+  verificationBannerSub: {
+    fontSize: 12,
+    color: '#8e8e93',
+    marginTop: 2,
+  },
+  verifyEmailButton: {
+    backgroundColor: '#FF9500',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  verifyEmailButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  signOutButtonUnverified: {
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: '#ff3b30',
+    alignItems: 'center',
+    minWidth: 160,
+  },
   credibilityContainer: {
     marginHorizontal: 20,
     marginBottom: 16,
@@ -446,6 +609,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#1a1a2e",
     fontWeight: "600",
+  },
+  emailStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  emailStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   divider: {
     height: 1,

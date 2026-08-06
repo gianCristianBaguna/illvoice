@@ -8,7 +8,7 @@ export interface MediaFile {
   id?: string;
 }
 
-export interface Complaint {
+export interface MapReportComplaint {
   id: string;
   title: string;
   description: string;
@@ -24,11 +24,18 @@ export interface Complaint {
   multimedia?: MediaFile[];
   latitude?: number | null;
   longitude?: number | null;
+  address?: string | null;
   barangay?: string | null;
   resolvedBy?: string | null;
   resolvedAt?: string | null;
   isCredible?: boolean;
+  isFlagged?: boolean;
+  flagType?: string | null;
+  flagReason?: string | null;
+  fraudCheck?: Record<string, any> | null;
 }
+
+export type Complaint = MapReportComplaint;
 
 export interface TeamMember {
   id: string;
@@ -37,8 +44,7 @@ export interface TeamMember {
   role: 'RESIDENT' | 'BARANGAY_OFFICIAL' | 'ADMIN';
 }
 
-// Stats calculation helper - works on any array of complaints
-export function getComplaintStats(data: Complaint[]) {
+export function getComplaintStats(data: MapReportComplaint[]) {
   const total = data.length;
   const byStatus = {
     OPEN: data.filter(c => c.status === 'OPEN' || c.status === 'PENDING').length,
@@ -50,44 +56,44 @@ export function getComplaintStats(data: Complaint[]) {
     MODERATE: data.filter(c => c.severity === 'MODERATE').length,
     LOW: data.filter(c => c.severity === 'LOW').length,
   };
-  
+
   const resolved = byStatus.RESOLVED;
   const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
-  
+
   const resolvedComplaints = data.filter(c => c.status === 'RESOLVED');
-  const avgResolutionTime = resolvedComplaints.length > 0 
+  const avgResolutionTime = resolvedComplaints.length > 0
     ? Math.round(resolvedComplaints.reduce((sum, c) => {
         const reported = new Date(c.reportedDate).getTime();
-        const resolved = c.resolvedAt 
-          ? new Date(c.resolvedAt).getTime() 
+        const resolved = c.resolvedAt
+          ? new Date(c.resolvedAt).getTime()
           : new Date(c.reportedDate).getTime() + (3 * 24 * 60 * 60 * 1000);
         return sum + (resolved - reported);
-      }, 0) / resolvedComplaints.length / (1000 * 60 * 60)) 
+      }, 0) / resolvedComplaints.length / (1000 * 60 * 60))
     : 0;
 
   return { total, byStatus, bySeverity, resolutionRate, avgResolutionTime };
 }
 
-export function getComplaintsTrend(data: Complaint[]) {
+export function getComplaintsTrend(data: MapReportComplaint[]) {
   const days = 7;
   const trend: { date: string; complaints: number }[] = [];
   const now = new Date();
-  
+
   for (let i = days - 1; i >= 0; i--) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
     const dateStr = date.toISOString().split('T')[0];
-    
+
     const count = data.filter(c => {
       const cDate = new Date(c.reportedDate).toISOString().split('T')[0];
       return cDate === dateStr;
     }).length;
-    
+
     trend.push({
       date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       complaints: count,
     });
   }
-  
+
   return trend;
 }

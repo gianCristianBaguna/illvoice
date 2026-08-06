@@ -1,6 +1,7 @@
 import { Request, Response, Router } from "express";
 import { prisma } from "../../prisma";
-import { analyzeSeverity, generateAIInsights, getVisionProvider } from "../../services/severityAI/index";
+import { analyzeSeverity, generateAIInsights, getVisionProvider, getAudioProvider } from "../../services/severityAI/index";
+import { runFraudChecks } from "../../services/fraudDetection";
 
 type Severity = "LOW" | "MODERATE" | "HIGH";
 type MediaType = "TEXT" | "IMAGE" | "VIDEO" | "AUDIO";
@@ -18,8 +19,8 @@ function toFiniteNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-function getNearestBarangay(latitude: number, longitude: number, barangays: Array<{ id: string; latitude: number; longitude: number }>) {
-  let nearestBarangay: { id: string; latitude: number; longitude: number } | null = null;
+function getNearestBarangay(latitude: number, longitude: number, barangays: Array<{ id: string; name: string; latitude: number; longitude: number }>) {
+  let nearestBarangay: { id: string; name: string; latitude: number; longitude: number } | null = null;
   let minDistance = Infinity;
 
   for (const barangay of barangays) {
@@ -58,6 +59,7 @@ async function resolveBarangayForReport(latitude: number | undefined, longitude:
   const barangays = await prisma.barangay.findMany({
     select: {
       id: true,
+      name: true,
       latitude: true,
       longitude: true,
     },
@@ -93,7 +95,7 @@ async function hydrateMissingBarangays<T extends { id: string; latitude: number 
 // ---------------- CREATE REPORT ----------------
 router.post("/reports/by-email", async (req: Request, res: Response) => {
   try {
-    const { title, description, mediaType, mediaUrl, latitude, longitude, email: overrideEmail } = req.body;
+    const { title, description, mediaType, mediaUrl, latitude, longitude, address, email: overrideEmail } = req.body;
     const resolvedLatitude = toFiniteNumber(latitude);
     const resolvedLongitude = toFiniteNumber(longitude);
 
@@ -136,22 +138,23 @@ router.post("/reports/by-email", async (req: Request, res: Response) => {
 
     let finalTitle = title;
     let finalDescription = description;
+    let imageAnalysis: any = undefined;
 
     // For media reports, get AI-generated title/description if not provided
     if (mediaType && mediaType !== "TEXT" && mediaUrl && mediaUrl !== "N/A") {
       try {
         const visionProvider = getVisionProvider();
-        const analysis = await visionProvider.analyzeImage(mediaUrl);
-        
+        imageAnalysis = await visionProvider.analyzeImage(mediaUrl);
+
         // Use AI description if available and meaningful
-        if (analysis.description && analysis.description.trim() && !finalDescription) {
-          finalDescription = analysis.description;
+        if (imageAnalysis.description && imageAnalysis.description.trim() && !finalDescription) {
+          finalDescription = imageAnalysis.description;
         }
-        
+
         // Use AI hazards for insights
         const insights = await generateAIInsights({
           title: finalTitle,
-          description: analysis.description,
+          description: imageAnalysis.description,
           mediaType,
           mediaUrl,
           currentSeverity: aiSeverity,
@@ -177,14 +180,52 @@ router.post("/reports/by-email", async (req: Request, res: Response) => {
       }
     }
 
+    let transcript = "";
+    if (mediaType === "AUDIO" && mediaUrl && mediaUrl !== "N/A") {
+      try {
+        const audioProvider = getAudioProvider();
+        transcript = await audioProvider.transcribe(mediaUrl);
+      } catch (e) {
+        console.error("Audio transcription for fraud detection failed:", e);
+      }
+    }
+
+    const fraudResult = await runFraudChecks({
+      userId: user.id,
+      description: finalDescription,
+      title: finalTitle,
+      mediaType,
+      mediaUrl,
+      imageAnalysis,
+      transcript,
+      latitude: resolvedLatitude,
+      longitude: resolvedLongitude,
+      barangayId: nearestBarangay?.id,
+      barangayName: nearestBarangay?.name,
+    });
+
+    if (fraudResult.isSuspicious) {
+      console.warn(`Suspicious report from ${user.email}:`, fraudResult.flags.map((f: any) => f.type).join(', '));
+    }
+
     const data: any = {
       userId: user.id,
       barangayId: nearestBarangay?.id,
       title: finalTitle,
       description: finalDescription,
+      address: address || undefined,
       latitude: resolvedLatitude,
       longitude: resolvedLongitude,
       severity: aiSeverity as Severity,
+      isFlagged: fraudResult.isSuspicious,
+      flagType: fraudResult.flags.length > 0 ? fraudResult.flags.map((f: any) => f.type).join(',') : undefined,
+      flagReason: fraudResult.flags.length > 0 ? fraudResult.flags.map((f: any) => f.reason).join('; ') : undefined,
+      fraudCheck: fraudResult.flags.length > 0 ? {
+        isSuspicious: fraudResult.isSuspicious,
+        flags: fraudResult.flags,
+        riskScore: fraudResult.riskScore,
+        checksRun: fraudResult.checksRun,
+      } : undefined,
     };
 
     // Add multimedia only if it exists
@@ -209,7 +250,16 @@ router.post("/reports/by-email", async (req: Request, res: Response) => {
       },
     });
 
-    res.status(201).json(report);
+    res.status(201).json({
+      message: 'Report created',
+      report,
+      fraudCheck: fraudResult.flags.length > 0 ? {
+        isSuspicious: fraudResult.isSuspicious,
+        flags: fraudResult.flags,
+        riskScore: fraudResult.riskScore,
+        checksRun: fraudResult.checksRun,
+      } : undefined,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to create report" });

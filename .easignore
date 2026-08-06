@@ -1,0 +1,13 @@
+node_modules/
+android/
+ios/
+backend/
+web/
+expo-env.d.ts
+.kilo/
+.vscode/
+.git/
+.expo/
+dist/
+web-build/
+*.map

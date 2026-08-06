@@ -2,11 +2,12 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Router, type Request, type Response } from 'express';
 import { prisma } from '../../prisma';
+import { generateVerificationCode, sendVerificationEmail } from '../../utils/email';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
 
-function signUserToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null }) {
+function signUserToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null; emailVerified?: boolean }) {
   return jwt.sign(
     {
       userId: user.id,
@@ -15,18 +16,12 @@ function signUserToken(user: { id: string; email: string; name: string | null; r
       role: user.role,
       barangayId: user.barangayId,
       barangayName: user.barangayName || null,
+      emailVerified: user.emailVerified ?? false,
     },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
 }
-
-const AUTHORIZED_ADMINS = [
-  'usernamenigian@gmail.com',
-  'admin@barangay.gov',
-  'admin@demo.gov',
-  process.env.AUTHORIZED_ADMIN_EMAIL || 'admin@illvoice.local',
-];
 
 // Register new user with username/password
 router.post('/register', async (req: Request, res: Response) => {
@@ -65,12 +60,26 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
 
+    const code = generateVerificationCode();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationToken: code,
+        verificationTokenExpiry: expiry,
+      },
+    });
+
+    await sendVerificationEmail(user.email, code, user.name || undefined);
+
     const token = signUserToken({
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
       barangayId: user.barangayId,
+      emailVerified: user.emailVerified,
     });
 
     return res.status(201).json({
@@ -79,6 +88,7 @@ router.post('/register', async (req: Request, res: Response) => {
         email: user.email,
         name: user.name,
         phoneNumber: user.phoneNumber,
+        emailVerified: user.emailVerified,
       },
       token,
     });
@@ -106,11 +116,6 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Check if user is a username/password account
-    if (!AUTHORIZED_ADMINS.includes(user.email) && user.authMethod !== 'USERNAME_PASSWORD') {
-      return res.status(401).json({ error: 'This account uses Google Sign-In' });
-    }
-
     if (!user.password) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -129,6 +134,7 @@ router.post('/login', async (req: Request, res: Response) => {
       role: user.role,
       barangayId: user.barangayId,
       barangayName: user.barangay?.name || null,
+      emailVerified: user.emailVerified,
     });
 
     return res.json({
@@ -140,6 +146,7 @@ router.post('/login', async (req: Request, res: Response) => {
         authMethod: user.authMethod,
         barangayId: user.barangayId,
         barangayName: user.barangay?.name || null,
+        emailVerified: user.emailVerified,
       },
       token,
     });

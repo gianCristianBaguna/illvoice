@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Complaint } from '@/lib/mockData';
+import { Complaint } from '@/lib/types';
 import { useMemo, useState } from 'react';
 
 interface ComplaintsTableProps {
@@ -115,18 +115,18 @@ export function ComplaintsTable({
       <div className="p-3 md:p-4 border-b border-slate-200 bg-white">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
-            <label className="text-sm font-medium mb-1 md:mb-2 block text-slate-700">Search</label>
+            <label className="text-sm font-medium mb-1 md:mb-2 block text-black">Search</label>
             <Input
               placeholder="Search by ID, title, user, or barangay..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className=" focus:border-blue-500 focus:ring-blue-500/20 text-sm rounded-lg "
+              className="focus:border-blue-500 focus:ring-blue-500/20 text-sm rounded-lg bg-white dark:bg-white text-black"
             />
           </div>
           <div>
-            <label className="text-sm font-medium mb-1 md:mb-2 block text-slate-700">Severity</label>
+            <label className="text-sm font-medium mb-1 md:mb-2 block text-black">Severity</label>
             <Select value={severityFilter} onValueChange={setSeverityFilter}>
-              <SelectTrigger className="border-slate-300 focus:border-amber-500 rounded-lg">
+              <SelectTrigger className="border-slate-300 focus:border-amber-500 rounded-lg bg-white dark:bg-white text-black">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -138,9 +138,9 @@ export function ComplaintsTable({
             </Select>
           </div>
           <div>
-            <label className="text-sm font-medium mb-1 md:mb-2 block text-slate-700">Status</label>
+            <label className="text-sm font-medium mb-1 md:mb-2 block text-black">Status</label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="border-slate-300 focus:border-emerald-500 rounded-lg">
+              <SelectTrigger className="border-slate-300 focus:border-emerald-500 rounded-lg bg-white dark:bg-white text-black">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -187,9 +187,9 @@ export function ComplaintsTable({
                       {complaint.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {complaint.barangay || 'Location not recorded'}
-                  </td>
+                   <td className="px-6 py-4 text-sm text-slate-600">
+                     {complaint.address || complaint.barangay || 'Location not recorded'}
+                   </td>
                   <td className="px-6 py-4">
                     <Button
                       size="sm"

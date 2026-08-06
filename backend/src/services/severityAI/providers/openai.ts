@@ -4,8 +4,28 @@ import fetch from "node-fetch";
 import OpenAI from "openai";
 import { tmpdir } from "os";
 import { join } from "path";
-import { SEVERITY_KEYWORDS } from "../keywords";
-import { VisionResult, VisionProvider, TextProvider, AudioProvider } from "./interface";
+
+async function resolveImageUrl(imageUrl: string): Promise<string> {
+  if (!imageUrl) return imageUrl;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("data:")) {
+    return imageUrl;
+  }
+  try {
+    if (fs.existsSync(imageUrl)) {
+      const buffer = fs.readFileSync(imageUrl);
+      const ext = imageUrl.split(".").pop()?.toLowerCase() || "png";
+      const mimeMap: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
+      const mime = mimeMap[ext] || "image/png";
+      return `data:${mime};base64,${buffer.toString("base64")}`;
+    }
+  } catch {
+    console.error("Failed to read local image file:", imageUrl);
+  }
+  return imageUrl;
+}
+
+import { getRuleBasedSeverity as getDbRuleBasedSeverity } from "../keyword-store";
+import { AudioProvider, TextProvider, VisionProvider, VisionResult } from "./interface";
 
 let openai: OpenAI | null = null;
 
@@ -28,6 +48,7 @@ export const openaiVisionProvider: VisionProvider = {
     }
 
     try {
+      const resolvedUrl = await resolveImageUrl(imageUrl);
       const response = await client.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -45,7 +66,7 @@ export const openaiVisionProvider: VisionProvider = {
 
 Look for: fire, flooding, structural damage, accidents, debris, dangerous conditions, etc.`,
               },
-              { type: "image_url", image_url: { url: imageUrl } },
+              { type: "image_url", image_url: { url: resolvedUrl } },
             ],
           },
         ],
@@ -69,14 +90,22 @@ Look for: fire, flooding, structural damage, accidents, debris, dangerous condit
       return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
     }
 
-    const response = await fetch(videoUrl);
-    if (!response.ok) return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
-
-    const videoBuffer = await response.arrayBuffer();
+    let videoBuffer: Buffer;
+    if (videoUrl.startsWith("http://") || videoUrl.startsWith("https://")) {
+      const response = await fetch(videoUrl);
+      if (!response.ok) return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
+      videoBuffer = Buffer.from(await response.arrayBuffer());
+    } else {
+      try {
+        videoBuffer = fs.readFileSync(videoUrl);
+      } catch {
+        return { description: "", hazards: [], severity_indicator: "UNKNOWN" };
+      }
+    }
     const tmpVideoPath = join(tmpdir(), `video_${Date.now()}.mp4`);
     const framesDir = join(tmpdir(), `frames_${Date.now()}`);
 
-    fs.writeFileSync(tmpVideoPath, Buffer.from(videoBuffer));
+    fs.writeFileSync(tmpVideoPath, videoBuffer);
     fs.mkdirSync(framesDir, { recursive: true });
 
     return new Promise(async (resolve) => {
@@ -153,7 +182,7 @@ Look for: fire, flooding, structural damage, accidents, debris, dangerous condit
 
           fs.rmSync(framesDir, { recursive: true, force: true });
           const combinedHazards = allHazards.flat();
-          const ruleBasedSeverity = getRuleBasedSeverity(combinedDescription, "", "");
+          const ruleBasedSeverity = await getDbRuleBasedSeverity(combinedDescription, "", "");
 
           resolve({ description: combinedDescription, hazards: combinedHazards, severity_indicator: ruleBasedSeverity, allHazards });
         } catch (err: any) {
@@ -171,21 +200,6 @@ Look for: fire, flooding, structural damage, accidents, debris, dangerous condit
     });
   },
 };
-
-function getRuleBasedSeverity(title: string, description: string, audioText?: string): string {
-  const text = `${title} ${description} ${audioText || ""}`.toLowerCase();
-
-  const highMatch = SEVERITY_KEYWORDS.HIGH.some(k => text.includes(k.toLowerCase()));
-  if (highMatch) return "HIGH";
-
-  const moderateMatch = SEVERITY_KEYWORDS.MODERATE.some(k => text.includes(k.toLowerCase()));
-  if (moderateMatch) return "MODERATE";
-
-  const lowMatch = SEVERITY_KEYWORDS.LOW.some(k => text.includes(k.toLowerCase()));
-  if (lowMatch) return "LOW";
-
-  return "LOW";
-}
 
 export const openaiTextProvider: TextProvider = {
   async generateInsights(
@@ -315,7 +329,7 @@ Return ONLY the word: LOW | MODERATE | HIGH`;
       return "LOW";
     } catch (err: any) {
       console.error("❌ Multimodal severity analysis error:", err.message);
-      return getRuleBasedSeverity(title, description, transcribedAudio);
+      return await getDbRuleBasedSeverity(title, description, transcribedAudio);
     }
   },
 };

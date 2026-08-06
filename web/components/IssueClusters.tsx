@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Complaint } from '@/lib/mockData';
+import { Complaint } from '@/lib/types';
 import { clusterComplaints, type IssueCluster } from '@/lib/clustering';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';

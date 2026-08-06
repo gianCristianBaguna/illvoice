@@ -5,15 +5,9 @@ import { prisma } from '../../prisma';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
-const AUTHORIZED_ADMINS = [
-  'usernamenigian@gmail.com',
-  'admin@barangay.gov',
-  'admin@demo.gov',
-  process.env.AUTHORIZED_ADMIN_EMAIL || 'admin@illvoice.local',
-];
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-function signAdminToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null }) {
+function signAdminToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null; emailVerified: boolean }) {
   return jwt.sign(
     {
       userId: user.id,
@@ -22,6 +16,7 @@ function signAdminToken(user: { id: string; email: string; name: string | null; 
       role: user.role,
       barangayId: user.barangayId,
       barangayName: user.barangayName || null,
+      emailVerified: user.emailVerified,
     },
     JWT_SECRET,
     { expiresIn: '7d' }
@@ -53,10 +48,6 @@ router.post('/google-signin', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Google account email is required' });
     }
 
-    if (!AUTHORIZED_ADMINS.includes(email)) {
-      return res.status(403).json({ error: 'Unauthorized admin email' });
-    }
-
     let user = await prisma.user.findUnique({ where: { email }, include: { barangay: true } });
     let userRole: string = 'ADMIN';
 
@@ -83,6 +74,7 @@ router.post('/google-signin', async (req: Request, res: Response) => {
       role: userRole,
       barangayId: user.barangayId,
       barangayName: user.barangay?.name || null,
+      emailVerified: user.emailVerified,
     });
 
     return res.status(200).json({
@@ -92,6 +84,7 @@ router.post('/google-signin', async (req: Request, res: Response) => {
       role: userRole,
       barangayId: user.barangayId,
       barangayName: user.barangay?.name || null,
+      emailVerified: user.emailVerified,
       message: 'Google sign-in successful',
     });
   } catch (error: any) {

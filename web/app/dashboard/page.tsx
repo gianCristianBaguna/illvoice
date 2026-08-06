@@ -1,26 +1,26 @@
 'use client';
 
+import { ActivityFeed } from '@/components/activity-feed';
+import { AlertBanner } from '@/components/alert-banner';
+import { ComplaintsTable } from '@/components/ComplaintsTable';
 import { ComplaintsByHazardChart, ComplaintsByMonthChart, ResolutionRateChart } from '@/components/dashboard-charts';
 import { IssueClusters } from '@/components/IssueClusters';
-import { ComplaintsTable } from '@/components/ComplaintsTable';
-import { AlertBanner } from '@/components/alert-banner';
-import { ActivityFeed } from '@/components/activity-feed';
 import { Sidebar } from '@/components/sidebar';
-import { ViewReportModal } from '@/components/ViewReportModal';
-import { UrgentReportsModal } from '@/components/UrgentReportsModal';
 import { Button } from '@/components/ui/button';
-import { fetchComplaints } from '@/lib/api';
-import { Complaint } from '@/lib/mockData';
-import { useEffect, useState } from 'react';
+import { UrgentReportsModal } from '@/components/UrgentReportsModal';
+import { ViewReportModal } from '@/components/ViewReportModal';
 import { useAuth } from '@/contexts/auth-context';
+import { fetchComplaints } from '@/lib/api';
+import { Complaint } from '@/lib/types';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 export default function DashboardPage() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewComplaint, setViewComplaint] = useState<Complaint | null>(null);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
-  const { isAuthenticated, logout, adminEmail } = useAuth();
+  const { isAuthenticated, logout, adminEmail, adminRole, emailVerified } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -29,8 +29,13 @@ export default function DashboardPage() {
       return;
     }
 
+    if (!emailVerified && adminRole !== 'ADMIN') {
+      router.replace('/verify-email');
+      return;
+    }
+
     fetchDashboardData();
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, emailVerified, adminRole, router]);
 
   const fetchDashboardData = async () => {
     try {
@@ -101,8 +106,6 @@ export default function DashboardPage() {
         {/* Main Content */}
         <main className="px-3 py-4 md:px-6 md:py-6">
           <div className="max-w-7xl mx-auto space-y-4 md:space-y-6">
-            {/* Alert Banner - Real-time from database */}
-            <AlertBanner onViewUrgent={handleViewUrgent} />
 
             {/* Analytics Charts */}
             <div className="grid grid-cols-1 gap-3 md:gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -111,7 +114,7 @@ export default function DashboardPage() {
               <ResolutionRateChart complaints={complaints} />
             </div>
 
-            {/* Complaints Table + Activity Feed */}
+            {/* Complaints Table + Urgent Feed + Activity Feed */}
             <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <ComplaintsTable
@@ -120,7 +123,28 @@ export default function DashboardPage() {
                   onViewComplaint={handleViewComplaint}
                 />
               </div>
-              <div>
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-red-300 bg-red-50 p-6 shadow-sm">
+                  <div className="flex items-center justify-between gap-3 text-red-900">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white">
+                        !
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold">Urgent high severity alerts</p>
+                        <p className="text-xs text-red-700">High priority reports are shown above live activity for faster response.</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleViewUrgent}
+                      className="border-slate-300 hover:bg-red-100 hover:text-red-700"
+                    >
+                      View urgent
+                    </Button>
+                  </div>
+                </div>
                 <ActivityFeed />
               </div>
             </div>

@@ -13,7 +13,7 @@ import {
 import { ViewReportModal } from '@/components/ViewReportModal';
 import { useAuth } from '@/contexts/auth-context';
 import { fetchComplaints } from '@/lib/api';
-import { Complaint, ComplaintStatus } from '@/lib/mockData';
+import { Complaint, ComplaintStatus } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -63,7 +63,7 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewReport, setViewReport] = useState<Complaint | null>(null);
-  const { isAuthenticated, logout, adminRole } = useAuth();
+  const { isAuthenticated, logout, adminRole, emailVerified } = useAuth();
   const router = useRouter();
 
   const loadReports = useCallback(async () => {
@@ -83,8 +83,13 @@ export default function ReportsPage() {
       return;
     }
 
+    if (!emailVerified && adminRole !== 'ADMIN') {
+      router.replace('/verify-email');
+      return;
+    }
+
     loadReports();
-  }, [isAuthenticated, loadReports, router]);
+  }, [isAuthenticated, emailVerified, adminRole, loadReports, router]);
 
   const handleLogout = async () => {
     await logout();
@@ -198,19 +203,24 @@ export default function ReportsPage() {
                               <p className="text-xs text-slate-500">{report.userName || 'Unknown user'}</p>
                             </div>
                           </TableCell>
-                          <TableCell className="px-5 py-4">
-                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getSeverityColor(report.severity)}`}>
-                              {report.severity}
-                            </span>
-                          </TableCell>
+                           <TableCell className="px-5 py-4">
+                             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getSeverityColor(report.severity)}`}>
+                               {report.severity}
+                             </span>
+                             {report.isFlagged && (
+                               <span className="ml-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                                 FLAGGED
+                               </span>
+                             )}
+                           </TableCell>
                           <TableCell className="px-5 py-4">
                             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getStatusColor(report.status)}`}>
                               {getStatusLabel(report.status)}
                             </span>
                           </TableCell>
-                          <TableCell className="px-5 py-4 text-slate-600">
-                            {report.barangay || 'Location not recorded'}
-                          </TableCell>
+                           <TableCell className="px-5 py-4 text-slate-600">
+                             {report.address || report.barangay || 'Location not recorded'}
+                           </TableCell>
                           <TableCell className="px-5 py-4 text-slate-600">
                             {new Date(report.reportedDate).toLocaleDateString()}
                           </TableCell>

@@ -1,25 +1,25 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { BACKEND_URL, updateComplaint } from '@/lib/api';
-import { Complaint, ComplaintStatus, MediaFile } from '@/lib/mockData';
+import { BACKEND_URL, analyzeComplaintWithAI, updateComplaint } from '@/lib/api';
+import { Complaint, ComplaintStatus, MediaFile } from '@/lib/types';
 import { useEffect, useState } from 'react';
 
 interface ViewReportModalProps {
@@ -30,6 +30,16 @@ interface ViewReportModalProps {
 }
 
 const statusOptions: ComplaintStatus[] = ['OPEN', 'PENDING', 'IN_PROGRESS', 'RESOLVED'];
+const categoryOptions = [
+  'Potholes',
+  'Flooding',
+  'Garbage Dumping',
+  'Fire Hazard',
+  'Noise Complaint',
+  'Other Complaints',
+] as const;
+
+type CategoryOption = (typeof categoryOptions)[number];
 
 function getStatusLabel(status: ComplaintStatus) {
   switch (status) {
@@ -150,15 +160,25 @@ export function ViewReportModal({
   onSave,
 }: ViewReportModalProps) {
   const [selectedStatus, setSelectedStatus] = useState<ComplaintStatus>('OPEN');
+  const [category, setCategory] = useState<string>('');
   const [isCredible, setIsCredible] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [analysisText, setAnalysisText] = useState<string>('');
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   useEffect(() => {
     if (complaint) {
       setSelectedStatus(complaint.status);
+      setCategory(complaint.category || '');
       setIsCredible(complaint.isCredible || false);
       setErrorMessage(null);
+      const mediaAnalysis = complaint.multimedia?.find(
+        (media) => typeof media.analysis === 'object' && media.analysis?.insights,
+      );
+      setAnalysisText(mediaAnalysis?.analysis?.insights ?? '');
+      setAnalysisError(null);
     }
   }, [complaint]);
 
@@ -172,6 +192,7 @@ export function ViewReportModal({
       const updated = await updateComplaint({
         id: complaint.id,
         status: selectedStatus,
+        category,
         isCredible,
       } as Complaint);
       onSave?.(updated);
@@ -191,10 +212,10 @@ export function ViewReportModal({
           <DialogHeader className="flex flex-row items-start justify-between">
             <div>
               <DialogTitle className="text-xl font-bold text-slate-950">
-                Report #{complaint.id}
+                Report details
               </DialogTitle>
               <DialogDescription className="text-slate-500 mt-1">
-                View and manage complaint details
+                Manage the complaint without exposing the internal report ID
               </DialogDescription>
             </div>
           </DialogHeader>
@@ -241,32 +262,140 @@ export function ViewReportModal({
                     <Label htmlFor="report-status" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Status
                     </Label>
-                    <Select
-                      value={selectedStatus}
-                      onValueChange={(value) => setSelectedStatus(value as ComplaintStatus)}
-                    >
-                      <SelectTrigger id="report-status" className="mt-2 bg-white text-slate-950">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white text-slate-950">
-                        {statusOptions.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {getStatusLabel(option)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                     <Select
+                       value={selectedStatus}
+                       onValueChange={(value) => setSelectedStatus(value as ComplaintStatus)}
+                     >
+                       <SelectTrigger id="report-status" className="mt-2 bg-white dark:bg-white text-black">
+                         <SelectValue />
+                       </SelectTrigger>
+                       <SelectContent className="bg-white dark:bg-white text-black">
+                         {statusOptions.map((option) => (
+                           <SelectItem key={option} value={option}>
+                             {getStatusLabel(option)}
+                           </SelectItem>
+                         ))}
+                       </SelectContent>
+                     </Select>
                   </div>
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <Label htmlFor="report-category" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Category
                   </Label>
-                  <p className="mt-1 text-slate-700">
-                    {complaint.category || 'N/A'}
+                   <Select
+                     value={category}
+                     onValueChange={(value) => setCategory(value)}
+                   >
+                     <SelectTrigger id="report-category" className="mt-2 bg-white dark:bg-white text-black">
+                       <SelectValue placeholder="Select category" />
+                     </SelectTrigger>
+                     <SelectContent className="bg-white dark:bg-white text-black">
+                       {categoryOptions.map((option) => (
+                         <SelectItem key={option} value={option}>
+                           {option}
+                         </SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
+                </div>
+              </div>
+            </div>
+
+            {complaint.isFlagged && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 space-y-4">
+                <h3 className="text-base font-semibold text-slate-950 flex items-center gap-2">
+                  <span className="w-1.5 h-5 bg-amber-500 rounded-full"></span>
+                  Fraud Detection Flags
+                </h3>
+                <p className="text-xs text-slate-500">
+                  This report was automatically flagged by the fraud detection system.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(complaint.flagType || '').split(',').filter(Boolean).map((flagType: string) => (
+                    <span
+                      key={flagType}
+                      className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20"
+                    >
+                      {flagType.replace(/_/g, ' ')}
+                    </span>
+                  ))}
+                </div>
+                {complaint.flagReason && (
+                  <p className="text-sm text-slate-700 bg-white rounded-lg p-3 border border-slate-200">
+                    {complaint.flagReason}
+                  </p>
+                )}
+                {complaint.fraudCheck?.flags && Array.isArray(complaint.fraudCheck.flags) && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Detection Details</p>
+                    <div className="flex flex-wrap gap-2">
+                      {complaint.fraudCheck.flags.map((flag: any, idx: number) => (
+                        <span
+                          key={idx}
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${
+                            flag.severity === 'HIGH'
+                              ? 'bg-red-50 text-red-700 ring-red-600/20'
+                              : flag.severity === 'MEDIUM'
+                              ? 'bg-yellow-50 text-yellow-700 ring-yellow-600/20'
+                              : 'bg-blue-50 text-blue-700 ring-blue-600/20'
+                          }`}
+                        >
+                          {flag.type.replace(/_/g, ' ')}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-slate-500">
+                      <span>Risk Score: <strong className="text-slate-700">{complaint.fraudCheck.riskScore}/100</strong></span>
+                      <span>Checks Run: <strong className="text-slate-700">{complaint.fraudCheck.checksRun?.length || 0}</strong></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-950">AI Issue Analysis</h3>
+                  <p className="text-xs text-slate-500">
+                    Generate a concise analysis of the reported issue.
                   </p>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (!complaint) return;
+                    setAnalysisLoading(true);
+                    setAnalysisError(null);
+
+                    try {
+                      const result = await analyzeComplaintWithAI(complaint.id);
+                      setAnalysisText(result.insights);
+                    } catch (err: any) {
+                      setAnalysisError(err.message || 'Failed to analyze issue');
+                    } finally {
+                      setAnalysisLoading(false);
+                    }
+                  }}
+                  disabled={analysisLoading}
+                >
+                  {analysisLoading ? 'Analyzing...' : analysisText ? 'Refresh analysis' : 'Analyze issue'}
+                </Button>
+              </div>
+
+              {analysisError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  {analysisError}
+                </div>
+              )}
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                {analysisText
+                  ? analysisText
+                  : 'AI analysis will appear here once the report is analyzed. Click the button to run the analysis.'}
               </div>
             </div>
 
@@ -277,25 +406,26 @@ export function ViewReportModal({
                   Location
                 </h3>
 
-                <div>
-                  <span className="text-xs font-semibold uppercase text-slate-500">
-                    Barangay
-                  </span>
-                  <p className="mt-1 text-slate-700 font-medium">
-                    {complaint.barangay || 'Location not recorded'}
-                  </p>
-                </div>
+                 <div>
+                   <span className="text-xs font-semibold uppercase text-slate-500">
+                     Barangay
+                   </span>
+                   <p className="mt-1 text-slate-700 font-medium">
+                     {complaint.barangay || 'Location not recorded'}
+                   </p>
+                 </div>
 
-                {complaint.latitude && complaint.longitude && (
-                  <div>
-                    <span className="text-xs font-semibold uppercase text-slate-500">
-                      Coordinates
-                    </span>
-                    <p className="mt-1 text-slate-700 font-mono text-sm">
-                      {complaint.latitude.toFixed(6)}, {complaint.longitude.toFixed(6)}
-                    </p>
-                  </div>
-                )}
+                 {complaint.address && (
+                   <div>
+                     <span className="text-xs font-semibold uppercase text-slate-500">
+                       Address
+                     </span>
+                     <p className="mt-1 text-slate-700">
+                       {complaint.address}
+                     </p>
+                   </div>
+                 )}
+
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-4">

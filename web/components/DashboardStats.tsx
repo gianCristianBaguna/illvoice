@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Complaint, getComplaintStats } from '@/lib/mockData';
+import { Complaint, getComplaintStats } from '@/lib/types';
 
 interface DashboardStatsProps {
   complaints: Complaint[];

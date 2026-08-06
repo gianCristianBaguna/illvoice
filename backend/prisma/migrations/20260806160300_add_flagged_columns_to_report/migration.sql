@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Report" ADD COLUMN "isFlagged" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Report" ADD COLUMN "flagType" TEXT;
+ALTER TABLE "Report" ADD COLUMN "flagReason" TEXT;
+ALTER TABLE "Report" ADD COLUMN "fraudCheck" JSONB;
+ALTER TABLE "Report" ADD COLUMN "flaggedAt" TIMESTAMP(3);

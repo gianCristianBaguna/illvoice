@@ -34,7 +34,7 @@ export default function LoginScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { setUserEmail, setUserName, setUserPhoto, setUserPhone, setIdToken, setAuthMethod } = useAuth();
+  const { setUserEmail, setUserName, setUserPhoto, setUserPhone, setIdToken, setAuthMethod, setEmailVerified } = useAuth();
 
   const handleGoogleSignin = async () => {
     if (isLoading) return;
@@ -66,14 +66,20 @@ export default function LoginScreen() {
             userPhoto && setUserPhoto(userPhoto);
             setIdToken(result.token);
             setAuthMethod('GOOGLE');
+            setEmailVerified(result.user?.emailVerified || false);
             await AsyncStorage.multiSet([
               ['idToken', result.token],
               ['userEmail', userEmail],
               ['userName', userName || ''],
               ['userPhoto', userPhoto || ''],
               ['authMethod', 'GOOGLE'],
+              ['emailVerified', String(result.user?.emailVerified || false)],
             ]);
-            router.replace('/(tabs)/Dashboard');
+            if (result.user?.emailVerified) {
+              router.replace('/(tabs)/Dashboard');
+            } else {
+              router.replace('/(auth)/verify-email');
+            }
           } else {
             console.log("Google auth failed:", backendResponse.status, result);
             Alert.alert('Error', result.error || 'Google authentication failed');
@@ -116,16 +122,22 @@ export default function LoginScreen() {
             setUserPhone(result.user.phoneNumber || null);
             setIdToken(result.token);
             setAuthMethod('USERNAME_PASSWORD');
+            setEmailVerified(result.user.emailVerified || false);
             await AsyncStorage.multiSet([
               ['idToken', result.token],
               ['userEmail', result.user.email],
               ['userName', result.user.name || ''],
               ['phoneNumber', result.user.phoneNumber || ''],
               ['authMethod', 'USERNAME_PASSWORD'],
+              ['emailVerified', String(result.user.emailVerified || false)],
             ]);
             setEmail('');
             setPassword('');
-            router.replace('/(tabs)/Dashboard');
+            if (result.user.emailVerified) {
+              router.replace('/(tabs)/Dashboard');
+            } else {
+              router.replace('/(auth)/verify-email');
+            }
           } else {
           Alert.alert('Error', 'No authentication token received');
         }
@@ -219,11 +231,6 @@ export default function LoginScreen() {
               disabled={isLoading}
               style={styles.googleButton}
             >
-              <Image
-                source={require('../../assets/images/googs.svg')}
-                style={{ width: 20, height: 20, marginRight: 10 }}
-              />
-
               <Text style={styles.googleButtonText}>
                 {isLoading ? "Signing in..." : "Sign in with Google"}
               </Text>

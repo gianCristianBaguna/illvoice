@@ -28,7 +28,7 @@ export default function SignUpScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { setUserEmail, setUserName, setUserPhone, setIdToken, setAuthMethod } = useAuth();
+  const { setUserEmail, setUserName, setUserPhone, setIdToken, setAuthMethod, setEmailVerified } = useAuth();
 
   const handleSignUp = async () => {
     if (!email.trim() || !password.trim() || !fullName.trim() || !phoneNumber.trim()) {
@@ -78,14 +78,20 @@ export default function SignUpScreen() {
           setUserPhone(loginResult.user.phoneNumber || null);
           setIdToken(loginResult.token);
           setAuthMethod('USERNAME_PASSWORD');
+          setEmailVerified(loginResult.user.emailVerified || false);
           await AsyncStorage.multiSet([
             ['idToken', loginResult.token],
             ['userEmail', loginResult.user.email],
             ['userName', loginResult.user.name || ''],
             ['phoneNumber', loginResult.user.phoneNumber || ''],
             ['authMethod', 'USERNAME_PASSWORD'],
+            ['emailVerified', String(loginResult.user.emailVerified || false)],
           ]);
-          router.replace('/(tabs)/Dashboard');
+          if (loginResult.user.emailVerified) {
+            router.replace('/(tabs)/Dashboard');
+          } else {
+            router.replace('/(auth)/verify-email');
+          }
         } else {
           Alert.alert('Success', 'Account created! Please log in.');
           router.replace('/(auth)/login');

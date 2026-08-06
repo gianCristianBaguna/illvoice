@@ -6,18 +6,20 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function LoginPage() {
-  const { isAuthenticated, adminRole } = useAuth();
+  const { isAuthenticated, adminRole, emailVerified } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (isAuthenticated) {
-      if (adminRole === 'BARANGAY_OFFICIAL') {
+      if (!emailVerified && adminRole !== 'ADMIN') {
+        router.replace('/verify-email');
+      } else if (adminRole === 'BARANGAY_OFFICIAL') {
         router.replace('/barangay-dashboard');
       } else {
         router.replace('/dashboard');
       }
     }
-  }, [isAuthenticated, adminRole, router]);
+  }, [isAuthenticated, adminRole, emailVerified, router]);
 
   return <AdminLogin />;
 }

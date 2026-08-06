@@ -1,8 +1,9 @@
 import { Router, type Response } from 'express';
+import { applyBarangayScope, authenticateToken, getScopedBarangayId, requireAssignedBarangay, type AuthenticatedRequest } from "../../middleware/auth";
 import { prisma } from '../../prisma';
 import { analyzeSeverity, generateAIInsights } from "../../services/severityAI/index";
-import { applyBarangayScope, authenticateToken, getScopedBarangayId, requireAssignedBarangay, type AuthenticatedRequest } from "../../middleware/auth";
 import { broadcastToUser } from '../../sse';
+import { runFraudChecks } from "../../services/fraudDetection";
 
 const router = Router();
 const FALLBACK_BARANGAY_NAME = "Unassigned Barangay";
@@ -106,7 +107,7 @@ function ensureReportInAssignedBarangay(report: { barangayId: string | null }, r
 
 router.post('/', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { email, title, description, severity, mediaType, mediaUrl } = req.body;
+    const { email, title, description, severity, mediaType, mediaUrl, address } = req.body;
 
     let userEmail = email;
 
@@ -127,11 +128,49 @@ router.post('/', authenticateToken, requireAssignedBarangay(), async (req: Authe
     }
 
     const scopedBarangayId = getScopedBarangayId(req);
+
+    let imageAnalysis: any = undefined;
+    if (mediaType && mediaType !== "TEXT" && mediaUrl) {
+      try {
+        const { getVisionProvider } = await import("../../services/severityAI/index");
+        const visionProvider = getVisionProvider();
+        imageAnalysis = await visionProvider.analyzeImage(mediaUrl);
+      } catch (e) {
+        console.error("Vision analysis for fraud detection failed:", e);
+      }
+    }
+
+    const fraudResult = await runFraudChecks({
+      userId: existingUser.id,
+      description,
+      title,
+      mediaType,
+      mediaUrl,
+      imageAnalysis,
+      latitude: undefined,
+      longitude: undefined,
+      barangayId: scopedBarangayId || undefined,
+    });
+
+    if (fraudResult.isSuspicious) {
+      console.warn(`Suspicious admin report for user ${userEmail}:`, fraudResult.flags.map(f => f.type).join(', '));
+    }
+
     const reportData: any = {
       title,
       description,
       severity: severity.toUpperCase(),
+      address: address || undefined,
       user: { connect: { id: existingUser.id } },
+      isFlagged: fraudResult.isSuspicious,
+      flagType: fraudResult.flags.length > 0 ? fraudResult.flags.map(f => f.type).join(',') : undefined,
+      flagReason: fraudResult.flags.length > 0 ? fraudResult.flags.map(f => f.reason).join('; ') : undefined,
+      fraudCheck: fraudResult.flags.length > 0 ? {
+        isSuspicious: fraudResult.isSuspicious,
+        flags: fraudResult.flags,
+        riskScore: fraudResult.riskScore,
+        checksRun: fraudResult.checksRun,
+      } : undefined,
     };
     if (scopedBarangayId) reportData.barangayId = scopedBarangayId;
     if (mediaType && mediaUrl) {
@@ -153,6 +192,12 @@ router.post('/', authenticateToken, requireAssignedBarangay(), async (req: Authe
     return res.status(201).json({
       message: 'Report created',
       report,
+      fraudCheck: fraudResult.flags.length > 0 ? {
+        isSuspicious: fraudResult.isSuspicious,
+        flags: fraudResult.flags,
+        riskScore: fraudResult.riskScore,
+        checksRun: fraudResult.checksRun,
+      } : undefined,
     });
   } catch (err: any) {
     console.error('❌ REPORT CREATE ERROR:', err);
@@ -184,10 +229,11 @@ router.get('/', authenticateToken, requireAssignedBarangay(), async (req: Authen
 
     const hydratedReports = await hydrateMissingBarangays(reports);
     return res.json(applyBarangayScope(hydratedReports, req));
-  } catch (err) {
+  } catch (err: any) {
     console.error('❌ REPORT FETCH ERROR:', err);
     return res.status(500).json({
       error: 'Failed to fetch reports',
+      details: err.message,
     });
   }
 });
@@ -222,15 +268,17 @@ router.get('/urgent', authenticateToken, requireAssignedBarangay(), async (req: 
       description: r.description,
       severity: r.severity,
       barangay: r.barangay?.name || 'Unknown Location',
+      address: r.address || null,
       latitude: r.latitude,
       longitude: r.longitude,
     }));
 
     return res.json(alerts);
-  } catch (err) {
+  } catch (err: any) {
     console.error('❌ URGENT ALERTS ERROR:', err);
     return res.status(500).json({
       error: 'Failed to fetch urgent alerts',
+      details: err.message,
     });
   }
 });
@@ -362,10 +410,11 @@ router.get('/activity', authenticateToken, requireAssignedBarangay(), async (req
     activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     return res.json(activities.slice(0, 15));
-  } catch (err) {
+  } catch (err: any) {
     console.error('❌ ACTIVITY FEED ERROR:', err);
     return res.status(500).json({
       error: 'Failed to fetch activity feed',
+      details: err.message,
     });
   }
 });
@@ -451,6 +500,7 @@ router.post('/:id/resolve', authenticateToken, requireAssignedBarangay(), async 
 
     return res.status(500).json({
       error: 'Failed to resolve report',
+      details: err.message,
     });
   }
 });
@@ -461,7 +511,7 @@ router.post('/:id/resolve', authenticateToken, requireAssignedBarangay(), async 
 router.patch('/:id', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   const idParam = req.params.id;
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
-  const { status, severity, resolvedByName, assignedTo, deadline, resolutionNotes, isCredible } = req.body;
+  const { status, severity, category, resolvedByName, assignedTo, deadline, resolutionNotes, isCredible } = req.body;
   const normalizedStatus = status ? (status === 'OPEN' ? 'PENDING' : status.toUpperCase()) : undefined;
 
   if (!id) {
@@ -497,6 +547,7 @@ router.patch('/:id', authenticateToken, requireAssignedBarangay(), async (req: A
       data: {
         ...(normalizedStatus && { status: normalizedStatus }),
         ...(severity && { severity: severity.toUpperCase() }),
+        ...(category !== undefined && { category }),
         ...(assignedTo !== undefined && { assignedTo }),
         ...(deadline && { deadline: new Date(deadline) }),
         ...(resolutionNotes !== undefined && { resolutionNotes }),
@@ -511,6 +562,35 @@ router.patch('/:id', authenticateToken, requireAssignedBarangay(), async (req: A
         resolvedBy: true,
       },
     });
+
+    const datasetExists = await prisma.severityDataset.findUnique({
+      where: { reportId: updated.id },
+    });
+
+    if (updated.isCredible) {
+      await prisma.severityDataset.upsert({
+        where: { reportId: updated.id },
+        update: {
+          severity: updated.severity,
+          title: updated.title,
+          description: updated.description,
+          address: updated.address,
+          barangayId: updated.barangayId,
+          analysis: updated.multimedia?.[0]?.analysis ?? undefined,
+        },
+        create: {
+          reportId: updated.id,
+          severity: updated.severity,
+          title: updated.title,
+          description: updated.description,
+          address: updated.address,
+          barangayId: updated.barangayId,
+          analysis: updated.multimedia?.[0]?.analysis ?? undefined,
+        },
+      });
+    } else if (datasetExists) {
+      await prisma.severityDataset.delete({ where: { reportId: updated.id } });
+    }
 
     // Recalculate user credibility if isCredible was updated
     if (isCredible !== undefined && report.userId) {
@@ -564,6 +644,7 @@ router.patch('/:id', authenticateToken, requireAssignedBarangay(), async (req: A
 
     return res.status(500).json({
       error: 'Failed to update report',
+      details: err.message,
     });
   }
 });

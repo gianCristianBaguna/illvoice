@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Report {
   id: string;
@@ -25,11 +26,13 @@ interface Report {
   createdAt: string;
   latitude?: number;
   longitude?: number;
+  address?: string;
   multimedia?: { type: string; url: string }[];
 }
 
 export default function Dashboard() {
-  const { userEmail, userName, userPhoto, idToken } = useAuth();
+  const { userEmail, userName, userPhoto, idToken, emailVerified } = useAuth();
+  const insets = useSafeAreaInsets();
   const [userReports, setUserReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -127,6 +130,22 @@ export default function Dashboard() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       showsVerticalScrollIndicator={false}
     >
+      {/* Verification Banner (verify later) */}
+      {!emailVerified && (
+        <View style={[styles.verifyBanner, { paddingTop: Math.max(insets.top, 8) }]}>
+          <Ionicons name="shield-outline" size={20} color="#1E3A8A" />
+          <Text style={styles.verifyBannerText}>
+            Please verify your email to unlock the full experience
+          </Text>
+          <TouchableOpacity
+            style={styles.verifyBannerButton}
+            onPress={() => router.push("/(auth)/verify-email")}
+          >
+            <Text style={styles.verifyBannerButtonText}>Verify</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Header */}
       <View style={styles.headerContainer}>
         <View style={[styles.headerView, { backgroundColor: '#1E3A8A' }]}>
@@ -147,9 +166,15 @@ export default function Dashboard() {
                   <Ionicons name="person" size={28} color="#fff" />
                 </View>
               )}
-              <View style={styles.avatarBadge}>
-                <Ionicons name="star" size={12} color="#fff" />
-              </View>
+              {emailVerified ? (
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark" size={12} color="#fff" />
+                </View>
+              ) : (
+                <View style={styles.avatarBadge}>
+                  <Ionicons name="star" size={12} color="#fff" />
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -329,7 +354,19 @@ export default function Dashboard() {
                     <Text style={styles.modalDescription}>{selectedReport.description}</Text>
                   </View>
 
-                  {selectedReport.latitude && selectedReport.longitude && (
+                  {selectedReport.address && (
+                    <View style={styles.modalLocationSection}>
+                    <Text style={styles.modalSectionLabel}>Location</Text>
+                    <View style={styles.modalLocationRow}>
+                      <Ionicons name="location-outline" size={16} color="#1E3A8A" />
+                      <Text style={styles.modalLocationText} numberOfLines={2}>
+                        {selectedReport.address}
+                      </Text>
+                    </View>
+                  </View>
+                  )}
+
+                  {!selectedReport.address && selectedReport.latitude && selectedReport.longitude && (
                     <View style={styles.modalLocationSection}>
                     <Text style={styles.modalSectionLabel}>Location</Text>
                     <View style={styles.modalLocationRow}>
@@ -440,6 +477,19 @@ const styles = StyleSheet.create({
     bottom: -2,
     right: -2,
     backgroundColor: '#FFD700',
+    borderRadius: 10,
+    width: 22,
+    height: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2.5,
+    borderColor: '#1E3A8A',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#34c759',
     borderRadius: 10,
     width: 22,
     height: 22,
@@ -831,5 +881,33 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 40,
+  },
+  verifyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#e8eaf6",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    gap: 10,
+  },
+  verifyBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#1E3A8A",
+    fontWeight: "500",
+  },
+  verifyBannerButton: {
+    backgroundColor: "#1E3A8A",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  verifyBannerButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

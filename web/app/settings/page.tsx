@@ -4,47 +4,49 @@ import { Sidebar } from '@/components/sidebar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import {
-  deleteBarangayAccount,
-  deleteUser,
-  fetchBarangayAccounts,
-  fetchUsers,
-  updateBarangayAccount,
-  updateUserPassword,
-  updateUserStatus
+    deleteBarangayAccount,
+    deleteUser,
+    fetchBarangayAccounts,
+    fetchUsers,
+    updateBarangayAccount,
+    updateUserPassword,
+    updateUserStatus
 } from '@/lib/api'
+import { reverseGeocode } from '@/lib/reverseGeocode'
 import type { Map as LeafletMap, Marker as LeafletMarker } from 'leaflet'
 import {
-  Activity,
-  Bell,
-  Edit,
-  LogOut,
-  Mail,
-  MapPin,
-  Plus,
-  Shield,
-  Trash2,
-  User,
-  Users,
+    Activity,
+    Bell,
+    Edit,
+    LogOut,
+    Mail,
+    MailCheck,
+    MapPin,
+    Plus,
+    Shield,
+    Trash2,
+    User,
+    Users,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -109,18 +111,13 @@ export default function SettingsPage() {
   const [regBarangayLat, setRegBarangayLat] = useState('')
   const [regBarangayLng, setRegBarangayLng] = useState('')
   const [regBarangayAddress, setRegBarangayAddress] = useState('')
+  const [regBarangayMapAddress, setRegBarangayMapAddress] = useState('')
   const [boundaryCoords, setBoundaryCoords] = useState<any>(null)
-  const [barangayMapOpen, setBarangayMapOpen] = useState(false)
-  const [editBarangayMapOpen, setEditBarangayMapOpen] = useState(false)
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const editMapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
-  const editMapRef = useRef<LeafletMap | null>(null)
   const markerRef = useRef<LeafletMarker | null>(null)
-  const editMarkerRef = useRef<LeafletMarker | null>(null)
   const leafletRef = useRef<any>(null)
-  const editLeafletRef = useRef<any>(null)
-  const { isAuthenticated, logout, adminEmail, adminRole } = useAuth()
+  const { isAuthenticated, logout, adminEmail, adminRole, emailVerified, setEmailVerified } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
@@ -233,6 +230,10 @@ export default function SettingsPage() {
         .find((row) => row.startsWith('adminToken='))
         ?.split('=')[1]
 
+      if (!regBarangayLat || !regBarangayLng) {
+        throw new Error('Please select a location on the map')
+      }
+
       const response = await fetch('/api/admin/barangays', {
         method: 'POST',
         headers: {
@@ -243,7 +244,7 @@ export default function SettingsPage() {
           name: regBarangayName,
           latitude: parseFloat(regBarangayLat),
           longitude: parseFloat(regBarangayLng),
-          address: regBarangayAddress,
+          address: regBarangayAddress || undefined,
         }),
       })
 
@@ -258,7 +259,7 @@ export default function SettingsPage() {
       setRegBarangayLat('')
       setRegBarangayLng('')
       setRegBarangayAddress('')
-      setBarangayMapOpen(false)
+      setRegBarangayMapAddress('')
       await fetchBarangays()
       setTimeout(() => setRegSuccess(false), 3000)
     } catch (err: any) {
@@ -266,7 +267,7 @@ export default function SettingsPage() {
     }
   }
 
-  const DEFAULT_CENTER: [number, number] = [14.5995, 120.9842]
+  const DEFAULT_CENTER: [number, number] = [10.7202, 122.5621]
 
   const fetchBarangayAccountsList = async () => {
     try {
@@ -373,79 +374,95 @@ export default function SettingsPage() {
     }
   }
 
-  const initBarangayMap = useCallback(async () => {
-    if (!mapContainerRef.current || leafletRef.current) return
+  const reverseGeocodeRequestIdRef = useRef(0)
 
-    const leaflet = await import('leaflet')
-    const L = (leaflet.default || leaflet) as any
-    leafletRef.current = L
+  const reverseGeocodeLocation = useCallback(async (lat: number, lng: number) => {
+    const requestId = ++reverseGeocodeRequestIdRef.current
+    try {
+      const result = await reverseGeocode(lat, lng)
 
-    const map = L.map(mapContainerRef.current, {
-      center: DEFAULT_CENTER,
-      zoom: 12,
-      scrollWheelZoom: true,
-    })
+      if (requestId !== reverseGeocodeRequestIdRef.current) return
 
-    mapRef.current = map
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map)
-
-    if (regBarangayLat && regBarangayLng) {
-      const pos: [number, number] = [parseFloat(regBarangayLat), parseFloat(regBarangayLng)]
-      const marker = L.marker(pos, { draggable: true }).addTo(map)
-      markerRef.current = marker
-      map.setView(pos, 15)
-
-      marker.on('dragend', () => {
-        const newPos = marker.getLatLng()
-        setRegBarangayLat(newPos.lat.toString())
-        setRegBarangayLng(newPos.lng.toString())
-      })
-    }
-
-    map.on('click', (e: any) => {
-      const { lat, lng } = e.latlng
-      setRegBarangayLat(lat.toString())
-      setRegBarangayLng(lng.toString())
-
-      if (markerRef.current) {
-        map.removeLayer(markerRef.current)
+      if (result.displayName) {
+        setRegBarangayAddress(result.displayName)
+        setRegBarangayMapAddress(result.displayName)
       }
-      const newMarker = L.marker([lat, lng], { draggable: true }).addTo(map)
-      markerRef.current = newMarker
 
-      newMarker.on('dragend', () => {
-        const newPos = newMarker.getLatLng()
-        setRegBarangayLat(newPos.lat.toString())
-        setRegBarangayLng(newPos.lng.toString())
-      })
-
-      map.setView([lat, lng], map.getZoom())
-    })
-  }, [regBarangayLat, regBarangayLng])
+      if (result.barangayName) {
+        setRegBarangayName(result.barangayName)
+      }
+    } catch {
+      if (requestId !== reverseGeocodeRequestIdRef.current) return
+    }
+  }, [])
 
   useEffect(() => {
-    let cancelled = false
+    if (activeTab !== 'register-barangay' || !mapContainerRef.current) return;
 
-    if (barangayMapOpen) {
-      const timer = setTimeout(() => {
-        if (!cancelled) initBarangayMap()
-      }, 100)
+    let cancelled = false;
 
-      return () => {
-        clearTimeout(timer)
-        cancelled = true
-        if (mapRef.current) {
-          mapRef.current.remove()
-          mapRef.current = null
-          leafletRef.current = null
+    const initBarangayMap = async () => {
+      if (!mapContainerRef.current || leafletRef.current) return;
+
+      const leaflet = await import('leaflet');
+      const L = (leaflet.default || leaflet) as any;
+
+      if (cancelled) return;
+
+      leafletRef.current = L;
+
+      const map = L.map(mapContainerRef.current, {
+        center: DEFAULT_CENTER,
+        zoom: 12,
+        scrollWheelZoom: true,
+      });
+
+      mapRef.current = map;
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+
+      map.on('click', (e: any) => {
+        const { lat, lng } = e.latlng;
+        setRegBarangayLat(lat.toString());
+        setRegBarangayLng(lng.toString());
+        reverseGeocodeLocation(lat, lng);
+
+        if (markerRef.current) {
+          map.removeLayer(markerRef.current);
         }
+        const newMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
+        markerRef.current = newMarker;
+
+        newMarker.on('dragend', () => {
+          const newPos = newMarker.getLatLng();
+          setRegBarangayLat(newPos.lat.toString());
+          setRegBarangayLng(newPos.lng.toString());
+          reverseGeocodeLocation(newPos.lat, newPos.lng);
+        });
+
+        map.setView([lat, lng], map.getZoom());
+      });
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
+    };
+
+    initBarangayMap();
+
+    return () => {
+      cancelled = true;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        leafletRef.current = null;
+        markerRef.current = null;
       }
-    }
-  }, [barangayMapOpen, initBarangayMap])
+    };
+  }, [activeTab, reverseGeocodeLocation]);
 
   if (!isAuthenticated) {
     return (
@@ -529,6 +546,38 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="lg:col-span-3 space-y-6">
+                  {!emailVerified && adminRole !== 'ADMIN' && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Shield size={20} className="text-yellow-600" />
+                        <div>
+                          <p className="text-sm font-medium text-yellow-800">Email Not Verified</p>
+                          <p className="text-xs text-yellow-600">Verify your email to access all features</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const token = document.cookie.split('; ').find((row) => row.startsWith('adminToken='))?.split('=')[1];
+                          const res = await fetch('/api/auth/verify-email/send-code', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                            },
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            toast.success(data.message || 'Verification code sent');
+                          } else {
+                            toast.error(data.error || 'Failed to send code');
+                          }
+                        }}
+                        className="px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700"
+                      >
+                        Verify Email
+                      </button>
+                    </div>
+                  )}
                   {activeTab === 'profile' && (
                     <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
                       <CardHeader className="border-b border-slate-100">
@@ -550,13 +599,25 @@ export default function SettingsPage() {
                         </div>
                         <Separator className="bg-slate-200" />
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-black flex items-center gap-2">
-                              <Mail size={14} className="text-slate-600" />
-                              Email Address
-                            </label>
-                            <Input value={profile?.email || ''} disabled className="bg-white border-slate-200 text-black font-mono text-sm" />
-                          </div>
+                           <div className="space-y-1.5">
+                             <label className="text-sm font-medium text-black flex items-center gap-2">
+                               <Mail size={14} className="text-slate-600" />
+                               Email Address
+                             </label>
+                             <Input value={profile?.email || ''} disabled className="bg-white border-slate-200 text-black font-mono text-sm" />
+                           </div>
+                           <div className="space-y-1.5">
+                             <label className="text-sm font-medium text-black flex items-center gap-2">
+                               <MailCheck size={14} className="text-slate-600" />
+                               Email Status
+                             </label>
+                             <div className="flex items-center gap-2 pt-2">
+                               <span className={`relative flex h-2.5 w-2.5 rounded-full ${emailVerified ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                               <span className={`text-sm font-medium ${emailVerified ? 'text-green-700' : 'text-yellow-700'}`}>
+                                 {emailVerified ? 'Verified' : 'Unverified'}
+                               </span>
+                             </div>
+                           </div>
                           <div className="space-y-1.5">
                             <label className="text-sm font-medium text-black flex items-center gap-2">
                               <User size={14} className="text-slate-600" />
@@ -629,10 +690,10 @@ export default function SettingsPage() {
 
                   {activeTab === 'register-official' && adminRole === 'ADMIN' && (
                     <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
-                      <CardHeader className="border-b border-slate-100">
-                        <CardTitle className="text-base font-semibold text-black">Register Barangay Official</CardTitle>
-                        <CardDescription className="text-slate-600">Create a new barangay official account</CardDescription>
-                      </CardHeader>
+                       <CardHeader className="border-b border-slate-100">
+                         <CardTitle className="text-base font-semibold text-black">Register Barangay Official</CardTitle>
+                         <CardDescription className="text-black">Create a new barangay official account</CardDescription>
+                       </CardHeader>
                       <CardContent className="p-6 space-y-4">
                         {regError && (
                           <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800">
@@ -644,155 +705,119 @@ export default function SettingsPage() {
                             Barangay official registered successfully!
                           </div>
                         )}
-                        <form onSubmit={handleRegisterOfficial} className="space-y-4">
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-black">Email</label>
-                            <Input
-                              type="email"
-                              value={regEmail}
-                              onChange={(e) => setRegEmail(e.target.value)}
-                              placeholder="official@barangay.gov"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-black">Full Name</label>
-                            <Input
-                              value={regFullName}
-                              onChange={(e) => setRegFullName(e.target.value)}
-                              placeholder="Juan Dela Cruz"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-black">Barangay</label>
-                            <Select value={selectedBarangayId} onValueChange={setSelectedBarangayId} required>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a barangay" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {barangays.map((barangay) => (
-                                  <SelectItem key={barangay.id} value={barangay.id}>
-                                    {barangay.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-black">Password</label>
-<Input
-                              type="password"
-                              value={regPassword}
-                              onChange={(e) => setRegPassword(e.target.value)}
-                              placeholder="••••••••"
-                              required
-                            />
-                          </div>
-                          <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
-                            Register Barangay Official
-                          </Button>
-                        </form>
+                         <form onSubmit={handleRegisterOfficial} className="space-y-4">
+                           <div className="space-y-1.5">
+                             <Label htmlFor="reg-email" className="text-black">Email</Label>
+                             <Input
+                               id="reg-email"
+                               type="email"
+                               value={regEmail}
+                               onChange={(e) => setRegEmail(e.target.value)}
+                               placeholder="official@barangay.gov"
+                               required
+                               className="bg-white dark:bg-white text-black"
+                             />
+                           </div>
+                           <div className="space-y-1.5">
+                             <Label htmlFor="reg-fullname" className="text-black">Full Name</Label>
+                             <Input
+                               id="reg-fullname"
+                               value={regFullName}
+                               onChange={(e) => setRegFullName(e.target.value)}
+                               placeholder="Juan Dela Cruz"
+                               required
+                               className="bg-white dark:bg-white text-black"
+                             />
+                           </div>
+                           <div className="space-y-1.5">
+                             <Label htmlFor="reg-barangay" className="text-black">Barangay</Label>
+                             <Select value={selectedBarangayId} onValueChange={setSelectedBarangayId} required>
+                               <SelectTrigger id="reg-barangay" className="bg-white dark:bg-white text-black">
+                                 <SelectValue placeholder="Select a barangay" />
+                               </SelectTrigger>
+                               <SelectContent>
+                                 {barangays.map((barangay) => (
+                                   <SelectItem key={barangay.id} value={barangay.id}>
+                                     {barangay.name}
+                                   </SelectItem>
+                                 ))}
+                               </SelectContent>
+                             </Select>
+                           </div>
+                           <div className="space-y-1.5">
+                             <Label htmlFor="reg-password" className="text-black">Password</Label>
+                             <Input
+                               id="reg-password"
+                               type="password"
+                               value={regPassword}
+                               onChange={(e) => setRegPassword(e.target.value)}
+                               placeholder="••••••••"
+                               required
+                               className="bg-white dark:bg-white text-black"
+                             />
+                           </div>
+                           <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
+                             Register Barangay Official
+                           </Button>
+                         </form>
                       </CardContent>
                     </Card>
                   )}
 
                   {activeTab === 'register-barangay' && adminRole === 'ADMIN' && (
-                    <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
-                      <CardHeader className="border-b border-slate-100">
-                        <CardTitle className="text-base font-semibold text-black">Register Barangay Account</CardTitle>
-                        <CardDescription className="text-slate-600">Create a new barangay with location</CardDescription>
-                      </CardHeader>
-                      <CardContent className="p-6 space-y-4">
-                        {regError && (
-                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800">
-                            {regError}
-                          </div>
-                        )}
-                        {regSuccess && (
-                          <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-green-800">
-                            Barangay registered successfully!
-                          </div>
-                        )}
-                        <form onSubmit={handleRegisterBarangay} className="space-y-4">
-                          <div className="space-y-1.5">
-                            <Label htmlFor="barangay-name">Barangay Name</Label>
-                            <Input
-                              id="barangay-name"
-                              value={regBarangayName}
-                              onChange={(e) => setRegBarangayName(e.target.value)}
-                              placeholder="e.g., Barangay San Isidro"
-                              required
-                            />
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label htmlFor="barangay-address">Address (Optional)</Label>
-                            <Input
-                              id="barangay-address"
-                              value={regBarangayAddress}
-                              onChange={(e) => setRegBarangayAddress(e.target.value)}
-                              placeholder="e.g., San Isidro Street, Manila"
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
+                     <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
+                       <CardHeader className="border-b border-slate-100">
+                         <CardTitle className="text-base font-semibold text-black">Register Barangay Account</CardTitle>
+                         <CardDescription className="text-black">Create a new barangay with location</CardDescription>
+                       </CardHeader>
+                       <CardContent className="p-6 space-y-4">
+                         {regError && (
+                           <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800">
+                             {regError}
+                           </div>
+                         )}
+                         {regSuccess && (
+                           <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-green-800">
+                             Barangay registered successfully!
+                           </div>
+                         )}
+                          <form onSubmit={handleRegisterBarangay} className="space-y-4">
                             <div className="space-y-1.5">
-                              <Label htmlFor="barangay-lat">Latitude</Label>
+                              <Label htmlFor="barangay-name" className="text-black">Barangay Name</Label>
                               <Input
-                                id="barangay-lat"
-                                type="number"
-                                step="any"
-                                value={regBarangayLat}
-                                onChange={(e) => setRegBarangayLat(e.target.value)}
-                                placeholder="e.g., 14.5995"
+                                id="barangay-name"
+                                value={regBarangayName}
+                                onChange={(e) => setRegBarangayName(e.target.value)}
+                                placeholder="e.g., Barangay San Isidro"
                                 required
+                                className="bg-white dark:bg-white text-black"
                               />
                             </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="barangay-lng">Longitude</Label>
-                              <Input
-                                id="barangay-lng"
-                                type="number"
-                                step="any"
-                                value={regBarangayLng}
-                                onChange={(e) => setRegBarangayLng(e.target.value)}
-                                placeholder="e.g., 120.9842"
-                                required
-                              />
-                            </div>
-                          </div>
 
-                          <Button type="button" variant="outline" onClick={() => setBarangayMapOpen(true)} className="w-full">
-                            Select Location on Map
-                          </Button>
-
-                          <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
-                            Register Barangay
-                          </Button>
-                        </form>
-
-                        <Dialog open={barangayMapOpen} onOpenChange={setBarangayMapOpen}>
-                          <DialogContent className="max-w-4xl max-h-[80vh] p-0">
-                            <DialogHeader className="p-4 pb-0">
-                              <DialogTitle>Select Barangay Location</DialogTitle>
-                            </DialogHeader>
-                            <div className="p-4">
-                              <p className="text-sm text-slate-600 mb-2">Click on the map to place a marker for the barangay location.</p>
-                              <div ref={mapContainerRef} className="map-container h-[500px] w-full rounded-lg border" />
-                              <div className="mt-4 flex justify-end gap-2">
-                                <Button variant="outline" onClick={() => setBarangayMapOpen(false)}>
-                                  Cancel
-                                </Button>
-                                <Button onClick={() => setBarangayMapOpen(false)}>
-                                  Confirm Location
-                                </Button>
+                             <div className="space-y-1.5">
+                               <Label className="text-black">Selected location</Label>
+                              <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-black">
+                                {regBarangayAddress
+                                  ? regBarangayAddress
+                                  : 'Click on the map to select the barangay location.'}
                               </div>
                             </div>
-                          </DialogContent>
-                        </Dialog>
-                      </CardContent>
-                    </Card>
+
+                            <div>
+                              <Label className="text-black">Location on Map</Label>
+                              <p className="text-xs text-black mb-2">Click on the map to place a marker, or drag the marker to adjust the location.</p>
+                              <div ref={mapContainerRef} className="map-container h-[400px] w-full rounded-lg border" />
+                              {regBarangayMapAddress && (
+                                <p className="text-xs text-black mt-2">Selected address: {regBarangayMapAddress}</p>
+                              )}
+                            </div>
+
+                            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
+                              Register Barangay
+                            </Button>
+                         </form>
+                       </CardContent>
+                     </Card>
                   )}
 
                   {activeTab === 'manage-barangays' && adminRole === 'ADMIN' && (
@@ -926,48 +951,52 @@ export default function SettingsPage() {
                       <DialogHeader>
                         <DialogTitle>Edit Barangay</DialogTitle>
                       </DialogHeader>
-                      <form onSubmit={handleUpdateBarangay} className="space-y-4 py-4">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="edit-name">Barangay Name</Label>
-                          <Input
-                            id="edit-name"
-                            value={editBarangay?.name || ''}
-                            onChange={(e) => setEditBarangay(prev => prev ? ({ ...prev, name: e.target.value }) : null)}
-                            required
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="edit-address">Address</Label>
-                          <Input
-                            id="edit-address"
-                            value={editBarangay?.address || ''}
-                            onChange={(e) => setEditBarangay(prev => prev ? ({ ...prev, address: e.target.value }) : null)}
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <Label htmlFor="edit-lat">Latitude</Label>
-                            <Input
-                              id="edit-lat"
-                              type="number"
-                              step="any"
-                              value={editBarangay?.latitude || ''}
-                              onChange={(e) => setEditBarangay(prev => prev ? ({ ...prev, latitude: parseFloat(e.target.value) }) : null)}
-                              required
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="edit-lng">Longitude</Label>
-                            <Input
-                              id="edit-lng"
-                              type="number"
-                              step="any"
-                              value={editBarangay?.longitude || ''}
-                              onChange={(e) => setEditBarangay(prev => prev ? ({ ...prev, longitude: parseFloat(e.target.value) }) : null)}
-                              required
-                            />
-                          </div>
-                        </div>
+                       <form onSubmit={handleUpdateBarangay} className="space-y-4 py-4">
+                         <div className="space-y-1.5">
+                           <Label htmlFor="edit-name" className="text-black">Barangay Name</Label>
+                           <Input
+                             id="edit-name"
+                             value={editBarangay?.name || ''}
+                             onChange={(e) => setEditBarangay(prev => prev ? ({ ...prev, name: e.target.value }) : null)}
+                             required
+                             className="bg-white dark:bg-white text-black"
+                           />
+                         </div>
+                         <div className="space-y-1.5">
+                           <Label htmlFor="edit-address" className="text-black">Address</Label>
+                           <Input
+                             id="edit-address"
+                             value={editBarangay?.address || ''}
+                             onChange={(e) => setEditBarangay(prev => prev ? ({ ...prev, address: e.target.value }) : null)}
+                             className="bg-white dark:bg-white text-black"
+                           />
+                         </div>
+                         <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-1.5">
+                             <Label htmlFor="edit-lat" className="text-black">Latitude</Label>
+                             <Input
+                               id="edit-lat"
+                               type="number"
+                               step="any"
+                               value={editBarangay?.latitude || ''}
+                               onChange={(e) => setEditBarangay(prev => prev ? ({ ...prev, latitude: parseFloat(e.target.value) }) : null)}
+                               readOnly
+                               className="bg-white dark:bg-white text-black"
+                             />
+                           </div>
+                           <div className="space-y-1.5">
+                             <Label htmlFor="edit-lng" className="text-black">Longitude</Label>
+                             <Input
+                               id="edit-lng"
+                               type="number"
+                               step="any"
+                               value={editBarangay?.longitude || ''}
+                               onChange={(e) => setEditBarangay(prev => prev ? ({ ...prev, longitude: parseFloat(e.target.value) }) : null)}
+                               readOnly
+                               className="bg-white dark:bg-white text-black"
+                             />
+                           </div>
+                         </div>
                         <div className="flex justify-end gap-2">
                           <Button variant="outline" onClick={() => setEditModalOpen(false)}>
                             Cancel

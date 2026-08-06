@@ -1,15 +1,13 @@
+import { getRuleBasedSeverity } from './keyword-store';
 import {
-  VisionResult,
-} from "./providers/interface";
-import {
-  getVisionProvider,
-  getTextProvider,
-  getAudioProvider,
+    getAudioProvider,
+    getTextProvider,
+    getVisionProvider,
 } from "./providers";
 
-export { getVisionProvider, getTextProvider, getAudioProvider };
-export { SEVERITY_KEYWORDS, SEVERITY_DESCRIPTIONS } from "./keywords";
+export { SEVERITY_DESCRIPTIONS } from "./keywords";
 export type { SeverityLevel } from "./keywords";
+export { getAudioProvider, getTextProvider, getVisionProvider };
 
 export function extractVideoFramesEverySecond(videoUrl: string, intervalSeconds: number = 1): Promise<string[]> {
   const fs = require("fs");
@@ -105,28 +103,11 @@ export async function transcribeAudioLocal(audioUrl: string): Promise<string> {
   }
 }
 
-function getRuleBasedSeverity(title: string, description: string, audioText?: string): string {
-  const text = `${title} ${description} ${audioText || ""}`.toLowerCase();
-
-  const { SEVERITY_KEYWORDS } = require("./keywords");
-
-  const highMatch = SEVERITY_KEYWORDS.HIGH.some((k: string) => text.includes(k.toLowerCase()));
-  if (highMatch) return "HIGH";
-
-  const moderateMatch = SEVERITY_KEYWORDS.MODERATE.some((k: string) => text.includes(k.toLowerCase()));
-  if (moderateMatch) return "MODERATE";
-
-  const lowMatch = SEVERITY_KEYWORDS.LOW.some((k: string) => text.includes(k.toLowerCase()));
-  if (lowMatch) return "LOW";
-
-  return "LOW";
-}
-
-export function analyzeSeverityText(title: string, description: string): string {
+export async function analyzeSeverityText(title: string, description: string): Promise<string> {
   return getRuleBasedSeverity(title, description);
 }
 
-export function analyzeSeverityFromAudio(transcript: string): string {
+export async function analyzeSeverityFromAudio(transcript: string): Promise<string> {
   return getRuleBasedSeverity("", transcript);
 }
 

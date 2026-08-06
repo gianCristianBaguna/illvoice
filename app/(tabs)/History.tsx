@@ -22,6 +22,9 @@ interface Report {
   severity: 'LOW' | 'MODERATE' | 'HIGH';
   status: 'PENDING' | 'IN_PROGRESS' | 'RESOLVED';
   createdAt: string;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
   multimedia?: { type: string; url: string }[];
 }
 
@@ -160,14 +163,21 @@ export default function HistoryScreen() {
 
         <Text style={styles.reportDescription} numberOfLines={2}>{item.description}</Text>
 
-        {item.multimedia && item.multimedia.length > 0 && (
-          <View style={styles.mediaIndicator}>
-            <Ionicons name="attach" size={14} color="#8e8e93" />
-            <Text style={styles.mediaText}>{item.multimedia.length} attachment{item.multimedia.length > 1 ? 's' : ''}</Text>
-          </View>
-        )}
+         {item.multimedia && item.multimedia.length > 0 && (
+           <View style={styles.mediaIndicator}>
+             <Ionicons name="attach" size={14} color="#8e8e93" />
+             <Text style={styles.mediaText}>{item.multimedia.length} attachment{item.multimedia.length > 1 ? 's' : ''}</Text>
+           </View>
+         )}
 
-        <View style={styles.reportFooter}>
+         {(item as any).address && (
+           <View style={styles.locationIndicator}>
+             <Ionicons name="location" size={14} color="#1E3A8A" />
+             <Text style={styles.locationText} numberOfLines={1}>{(item as any).address}</Text>
+           </View>
+         )}
+
+         <View style={styles.reportFooter}>
           <View
             style={[
               styles.statusBadge,
@@ -476,6 +486,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8e8e93',
     fontWeight: '500',
+  },
+  locationIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  locationText: {
+    fontSize: 12,
+    color: '#1E3A8A',
+    fontWeight: '500',
+    flex: 1,
   },
   reportFooter: {
     flexDirection: 'row',

@@ -51,8 +51,10 @@ export function AdminLogin() {
           throw new Error('Invalid server response');
         }
 
-        login(data.token, data.email, data.role, data.barangayId);
-        if (data.role === 'BARANGAY_OFFICIAL') {
+        login(data.token, data.email, data.role, data.barangayId, data.emailVerified);
+        if (!data.emailVerified && data.role !== 'ADMIN') {
+          router.push('/verify-email');
+        } else if (data.role === 'BARANGAY_OFFICIAL') {
           router.push('/barangay-dashboard');
         } else {
           router.push('/dashboard');
@@ -118,8 +120,12 @@ export function AdminLogin() {
 
 const data = await response.json();
 
-       login(data.token, data.email, data.role, data.barangayId || null);
-       router.push('/dashboard');
+        login(data.token, data.email, data.role, data.barangayId || null, data.emailVerified);
+        if (!data.emailVerified && data.role !== 'ADMIN') {
+          router.push('/verify-email');
+        } else {
+          router.push('/dashboard');
+        }
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
@@ -141,7 +147,7 @@ const data = await response.json();
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-black mb-1">
               Admin Email
             </label>
             <Input
@@ -150,11 +156,12 @@ const data = await response.json();
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@barangay.gov"
               required
+              className="bg-white dark:bg-white text-black"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-black mb-1">
               Password
             </label>
             <Input
@@ -163,6 +170,7 @@ const data = await response.json();
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
+              className="bg-white dark:bg-white text-black"
             />
           </div>
 

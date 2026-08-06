@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BACKEND_URL } from '@/config';
 import { router } from 'expo-router';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
@@ -11,6 +12,8 @@ interface AuthContextType {
   phoneNumber: string | null;
   idToken: string | null;
   authMethod: string | null;
+  emailVerified: boolean;
+  setEmailVerified: (verified: boolean) => void;
   setUserEmail: (email: string) => void;
   setUserName: (name: string) => void;
   setUserPhoto: (photo: string | null) => void;
@@ -31,6 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [phoneNumber, setUserPhone] = useState<string | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
   const [authMethod, setAuthMethod] = useState<string | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
 
   useEffect(() => {
     const bootstrapAsync = async () => {
@@ -41,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const storedPhoto = await AsyncStorage.getItem('userPhoto');
         const storedPhone = await AsyncStorage.getItem('phoneNumber');
         const storedMethod = await AsyncStorage.getItem('authMethod');
+        const storedVerified = await AsyncStorage.getItem('emailVerified');
 
         if (storedToken && storedEmail) {
           setIsSignedIn(true);
@@ -50,6 +55,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUserPhoto(storedPhoto);
           setUserPhone(storedPhone);
           setAuthMethod(storedMethod);
+
+          let isVerified = storedVerified === 'true';
+          try {
+            const statusResponse = await fetch(`${BACKEND_URL}/api/auth/verify-email/status`, {
+              headers: { Authorization: `Bearer ${storedToken}` },
+            });
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              isVerified = statusData.emailVerified === true;
+              await AsyncStorage.setItem('emailVerified', String(isVerified));
+            }
+          } catch (statusErr) {
+            console.error('Failed to sync verification status:', statusErr);
+          }
+          setEmailVerified(isVerified);
         }
       } catch (e) {
         console.error('Failed to restore auth state:', e);
@@ -70,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         'userPhoto',
         'phoneNumber',
         'authMethod',
+        'emailVerified',
       ]);
     } catch (e) {
       console.error('Failed to clear auth state:', e);
@@ -81,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserPhoto(null);
       setUserPhone(null);
       setAuthMethod(null);
+      setEmailVerified(false);
       router.replace('/(auth)/login');
     }
   };
@@ -96,6 +118,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         phoneNumber,
         idToken,
         authMethod,
+        emailVerified,
+        setEmailVerified,
         setUserEmail,
         setUserName,
         setUserPhoto,

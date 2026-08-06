@@ -1,7 +1,7 @@
 'use client'
 
 import { BarChart, Bar, PieChart, Pie, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { Complaint } from '@/lib/mockData'
+import { Complaint } from '@/lib/types'
 
 export function ComplaintsByHazardChart({ complaints }: { complaints: Complaint[] }) {
   const bySeverity = complaints.reduce(

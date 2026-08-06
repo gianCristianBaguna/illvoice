@@ -11,6 +11,7 @@ export interface AuthenticatedRequest extends Request {
     role: string;
     barangayId?: string | null;
     barangayName?: string | null;
+    emailVerified?: boolean;
   };
 }
 
@@ -46,13 +47,16 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
+    console.log('[Auth] No token provided for', req.method, req.path);
     return res.status(401).json({ error: 'Access token required' });
   }
 
   jwt.verify(token, JWT_SECRET, (err: any, decoded: any) => {
     if (err) {
+      console.log('[Auth] Invalid token for', req.method, req.path, err.message);
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
+    console.log('[Auth] Token valid for', req.method, req.path, 'user:', decoded.email);
     req.user = decoded;
     next(); 
   });
@@ -82,4 +86,16 @@ export function optionalAuth(req: AuthenticatedRequest, res: Response, next: Nex
     });
   }
   next();
+}
+
+export function requireEmailVerified(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  if ((user.role === 'ADMIN' || user.role === 'BARANGAY_OFFICIAL') || user.emailVerified) {
+    next();
+  } else {
+    return res.status(403).json({ error: 'EMAIL_NOT_VERIFIED', message: 'Please verify your email address to continue' });
+  }
 }

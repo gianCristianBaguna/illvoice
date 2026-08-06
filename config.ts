@@ -1,1 +1,1 @@
-export const BACKEND_URL = process.env.BACKEND_URL || 'https://illvoice-production.up.railway.app';
+export const BACKEND_URL = process.env.BACKEND_URL || 'http://192.168.5.234:4000';

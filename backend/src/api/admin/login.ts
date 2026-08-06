@@ -1,8 +1,9 @@
 import bcrypt from 'bcryptjs';
 import { Request, Response, Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { authenticateToken, authorizeRoles } from '../../middleware/auth';
+import { authenticateToken, requireEmailVerified } from '../../middleware/auth';
 import { prisma } from '../../prisma';
+import { generateVerificationCode, sendVerificationEmail } from '../../utils/email';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
@@ -15,7 +16,7 @@ const getRouteParamId = (value: string | string[] | undefined): string | null =>
   return value ?? null;
 };
 
-function signAdminToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null }) {
+function signAdminToken(user: { id: string; email: string; name: string | null; role: string; barangayId: string | null; barangayName?: string | null; emailVerified: boolean }) {
   return jwt.sign(
     {
       userId: user.id,
@@ -24,13 +25,14 @@ function signAdminToken(user: { id: string; email: string; name: string | null; 
       role: user.role,
       barangayId: user.barangayId,
       barangayName: user.barangayName || null,
+      emailVerified: user.emailVerified,
     },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
 }
 
-router.get('/me', authenticateToken, async (req: any, res: Response) => {
+router.get('/me', authenticateToken, requireEmailVerified, async (req: any, res: Response) => {
   try {
     const user = req.user;
     if (!user) {
@@ -49,7 +51,7 @@ router.get('/me', authenticateToken, async (req: any, res: Response) => {
 });
 
 // Protect users endpoint - require authentication
-router.get('/users', authenticateToken, async (_req: Request, res: Response) => {
+router.get('/users', authenticateToken, requireEmailVerified, async (_req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -102,10 +104,6 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    if (user.role !== 'ADMIN' && user.role !== 'BARANGAY_OFFICIAL') {
-      return res.status(403).json({ error: 'This account cannot access the admin dashboard' });
-    }
-
     if (!user.password) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -125,6 +123,7 @@ router.post('/login', async (req: Request, res: Response) => {
       role: tokenRole,
       barangayId: user.barangayId,
       barangayName: user.barangay?.name || null,
+      emailVerified: user.emailVerified,
     });
 
     return res.status(200).json({
@@ -134,6 +133,7 @@ router.post('/login', async (req: Request, res: Response) => {
       role: tokenRole,
       barangayId: user.barangayId,
       barangayName: user.barangay?.name || null,
+      emailVerified: user.emailVerified,
     });
   } catch (err: any) {
     console.error('Admin login error:', err);
@@ -142,7 +142,7 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 // Protected registration - only authenticated admins can register barangay officials
-router.post('/register-barangay-official', authenticateToken, authorizeRoles(['ADMIN']), async (req: Request, res: Response) => {
+router.post('/register-barangay-official', authenticateToken, requireEmailVerified, async (req: Request, res: Response) => {
   try {
     const { email, password, fullName, barangayId } = req.body;
 
@@ -186,6 +186,19 @@ router.post('/register-barangay-official', authenticateToken, authorizeRoles(['A
       include: { barangay: true },
     });
 
+    const code = generateVerificationCode();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationToken: code,
+        verificationTokenExpiry: expiry,
+      },
+    });
+
+    await sendVerificationEmail(user.email, code, user.name || undefined);
+
     const token = signAdminToken({
       id: user.id,
       email: user.email,
@@ -193,6 +206,7 @@ router.post('/register-barangay-official', authenticateToken, authorizeRoles(['A
       role: 'BARANGAY_OFFICIAL',
       barangayId: user.barangayId,
       barangayName: user.barangay?.name || null,
+      emailVerified: user.emailVerified,
     });
 
     return res.status(201).json({
@@ -202,6 +216,7 @@ router.post('/register-barangay-official', authenticateToken, authorizeRoles(['A
       role: 'BARANGAY_OFFICIAL',
       barangayId: user.barangayId,
       barangayName: user.barangay?.name || null,
+      emailVerified: user.emailVerified,
     });
   } catch (err: any) {
     console.error('BARANGAY_OFFICIAL registration error:', err);
@@ -210,7 +225,7 @@ router.post('/register-barangay-official', authenticateToken, authorizeRoles(['A
 });
 
 // Admin-only registration (requires authentication + ADMIN role)
-router.post('/register-admin', authenticateToken, authorizeRoles(['ADMIN']), async (req: Request, res: Response) => {
+router.post('/register-admin', authenticateToken, requireEmailVerified, async (req: Request, res: Response) => {
   try {
     const { email, password, fullName } = req.body;
 
@@ -240,6 +255,19 @@ router.post('/register-admin', authenticateToken, authorizeRoles(['ADMIN']), asy
       },
     });
 
+    const code = generateVerificationCode();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationToken: code,
+        verificationTokenExpiry: expiry,
+      },
+    });
+
+    await sendVerificationEmail(user.email, code, user.name || undefined);
+
     const token = signAdminToken({
       id: user.id,
       email: user.email,
@@ -247,6 +275,7 @@ router.post('/register-admin', authenticateToken, authorizeRoles(['ADMIN']), asy
       role: 'ADMIN',
       barangayId: null,
       barangayName: null,
+      emailVerified: user.emailVerified,
     });
 
     return res.status(201).json({
@@ -256,6 +285,7 @@ router.post('/register-admin', authenticateToken, authorizeRoles(['ADMIN']), asy
       role: 'ADMIN',
       barangayId: null,
       barangayName: null,
+      emailVerified: user.emailVerified,
     });
   } catch (err: any) {
     console.error('ADMIN registration error:', err);
@@ -264,7 +294,7 @@ router.post('/register-admin', authenticateToken, authorizeRoles(['ADMIN']), asy
 });
 
 // Update user password (admin only)
-router.put('/users/:id/password', authenticateToken, authorizeRoles(['ADMIN']), async (req: Request, res: Response) => {
+router.put('/users/:id/password', authenticateToken, requireEmailVerified, async (req: Request, res: Response) => {
   try {
     const id = getRouteParamId(req.params.id);
     const { password } = req.body;
@@ -297,7 +327,7 @@ router.put('/users/:id/password', authenticateToken, authorizeRoles(['ADMIN']), 
 });
 
 // Activate/Deactivate user (admin only)
-router.patch('/users/:id/status', authenticateToken, authorizeRoles(['ADMIN']), async (req: Request, res: Response) => {
+router.patch('/users/:id/status', authenticateToken, requireEmailVerified, async (req: Request, res: Response) => {
   try {
     const id = getRouteParamId(req.params.id);
     const { active } = req.body;
@@ -331,7 +361,7 @@ router.patch('/users/:id/status', authenticateToken, authorizeRoles(['ADMIN']), 
 });
 
 // Delete user (admin only)
-router.delete('/users/:id', authenticateToken, authorizeRoles(['ADMIN']), async (req: Request, res: Response) => {
+router.delete('/users/:id', authenticateToken, requireEmailVerified, async (req: Request, res: Response) => {
   try {
     const id = getRouteParamId(req.params.id);
 

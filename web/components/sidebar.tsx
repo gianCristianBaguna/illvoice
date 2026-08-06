@@ -43,7 +43,6 @@ export function Sidebar() {
 
   const systemItems = [
     { href: '/analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
-    { href: '/barangays', label: 'Barangays', icon: <MapPin size={18} /> },
     { href: '/settings', label: 'Settings', icon: <Settings size={18} /> },
   ]
 

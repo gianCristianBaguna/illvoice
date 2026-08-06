@@ -1,4 +1,4 @@
-import { Complaint, SeverityLevel, ComplaintStatus } from './mockData';
+import { Complaint, ComplaintStatus, SeverityLevel } from './types';
 
 export interface IssueCluster {
   id: string;
@@ -125,6 +125,34 @@ function buildText(c: Complaint): string {
   return `${c.title || ''} ${c.description || ''}`.toLowerCase();
 }
 
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !STOP_WORDS.has(w))
+    .join(' ');
+}
+
+function getTitleKey(title: string): string {
+  const normalized = normalizeText(title);
+  const words = normalized.split(/\s+/).filter(Boolean);
+  return words.slice(0, 5).join(' ');
+}
+
+function getLocationKey(c: Complaint): string {
+  if (c.barangay) {
+    return c.barangay.toLowerCase().trim();
+  }
+  if (c.address) {
+    return c.address.toLowerCase().trim();
+  }
+  if (typeof c.latitude === 'number' && typeof c.longitude === 'number') {
+    return `${c.latitude.toFixed(3)},${c.longitude.toFixed(3)}`;
+  }
+  return 'unknown-location';
+}
+
 function detectThemes(text: string): { theme: string; hits: number; matched: string[] }[] {
   const results: { theme: string; hits: number; matched: string[] }[] = [];
 
@@ -196,8 +224,9 @@ export function clusterComplaints(
       matched = fb.keyword ? [fb.keyword] : [];
     }
 
-    const barangay = c.barangay || 'Unknown Barangay';
-    const key = `${theme}::${barangay}`;
+    const locationKey = getLocationKey(c);
+    const titleKey = getTitleKey(c.title || c.description || theme);
+    const key = `${theme}::${locationKey}::${titleKey}`;
     if (!groups.has(key)) groups.set(key, []);
     const list = groups.get(key)!;
     list.push(c);

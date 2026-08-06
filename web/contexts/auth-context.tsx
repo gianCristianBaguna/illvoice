@@ -10,7 +10,9 @@ interface AuthContextType {
   adminToken: string | null;
   adminRole: 'ADMIN' | 'BARANGAY_OFFICIAL' | null;
   barangayId: string | null;
-  login: (token: string, email: string, role?: string, barangayId?: string) => void;
+  emailVerified: boolean;
+  setEmailVerified: (verified: boolean) => void;
+  login: (token: string, email: string, role?: string, barangayId?: string, emailVerified?: boolean) => void;
   logout: () => Promise<void>;
   hasRole: (roles: string[]) => boolean;
 }
@@ -42,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [adminRole, setAdminRole] = useState<'ADMIN' | 'BARANGAY_OFFICIAL' | null>(null);
   const [barangayId, setBarangayId] = useState<string | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAdminName(decodeJwtName(data.token));
           setAdminRole((data.role as 'ADMIN' | 'BARANGAY_OFFICIAL') || 'ADMIN');
           setBarangayId(data.barangayId || null);
+          setEmailVerified(data.emailVerified ?? false);
           if (typeof window !== 'undefined' && data.token) {
             window.localStorage.setItem('adminToken', data.token);
           }
@@ -70,12 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
-  const login = (token: string, email: string, role?: string, barangayId?: string) => {
+  const login = (token: string, email: string, role?: string, barangayId?: string, emailVerifiedParam?: boolean) => {
     setAdminToken(token);
     setAdminEmail(email);
     setAdminName(decodeJwtName(token));
     setAdminRole((role as 'ADMIN' | 'BARANGAY_OFFICIAL') || 'ADMIN');
     setBarangayId(barangayId || null);
+    setEmailVerified(emailVerifiedParam ?? false);
     setIsAuthenticated(true);
 
     if (typeof window !== 'undefined') {
@@ -91,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAdminName(null);
     setAdminRole(null);
     setBarangayId(null);
+    setEmailVerified(false);
     setIsAuthenticated(false);
 
     if (typeof window !== 'undefined') {
@@ -112,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, adminEmail, adminName, adminToken, adminRole, barangayId, login, logout, hasRole, loading }}>
+    <AuthContext.Provider value={{ isAuthenticated, adminEmail, adminName, adminToken, adminRole, barangayId, emailVerified, setEmailVerified, login, logout, hasRole, loading }}>
       {children}
     </AuthContext.Provider>
   );
