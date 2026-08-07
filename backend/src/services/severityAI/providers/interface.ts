@@ -17,14 +17,16 @@ export interface TextProvider {
     description: string,
     severity: string,
     hazardsDetected?: string[],
-    audioTranscript?: string
+    audioTranscript?: string,
+    category?: string
   ): Promise<string>;
-  
+
   classifySeverity(
     title: string,
     description: string,
     transcribedAudio?: string,
-    imageAnalysis?: VisionResult
+    imageAnalysis?: VisionResult,
+    category?: string
   ): Promise<string>;
 }
 

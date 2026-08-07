@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -155,7 +154,7 @@ export function ComplaintsTable({
         </div>
       </div>
 
-      <div className="max-h-[360px] overflow-auto">
+      <div className="max-h-[360px] overflow-auto scrollbar-light">
         <table className="w-full">
           <thead className="bg-white border-b border-slate-200 sticky top-0 z-10">
             <tr>
@@ -167,14 +166,20 @@ export function ComplaintsTable({
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('status')}>
                 STATUS {sortField === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('reportedDate')}>
+                DATE/TIME {sortField === 'reportedDate' && (sortOrder === 'asc' ? '↑' : '↓')}
+              </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">LOCATION</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">ACTION</th>
             </tr>
           </thead>
           <tbody>
             {filteredAndSorted.length > 0 ? (
               filteredAndSorted.map((complaint, index) => (
-                <tr key={complaint.id} className={index % 2 === 0 ? 'bg-white' : 'bg-white hover:bg-white transition-colors'}>
+                <tr
+                  key={complaint.id}
+                  onClick={() => onViewComplaint(complaint)}
+                  className="bg-white hover:bg-slate-100 transition-colors cursor-pointer"
+                >
                   <td className="px-6 py-4 text-sm text-blue-600 font-medium">#{complaint.id.slice(0, 8)}</td>
                   <td className="px-6 py-4 text-sm text-slate-900 font-medium">{complaint.title}</td>
                   <td className="px-6 py-4">
@@ -187,19 +192,26 @@ export function ComplaintsTable({
                       {complaint.status}
                     </span>
                   </td>
-                   <td className="px-6 py-4 text-sm text-slate-600">
-                     {complaint.address || complaint.barangay || 'Location not recorded'}
-                   </td>
-                  <td className="px-6 py-4">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onViewComplaint(complaint)}
-                      className="border-slate-300 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-all"
-                    >
-                      View
-                    </Button>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    <div className="flex flex-col gap-0.5">
+                      <span>
+                        {new Date(complaint.reportedDate).toLocaleDateString('en-PH', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {new Date(complaint.reportedDate).toLocaleTimeString('en-PH', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
                   </td>
+                   <td className="px-6 py-4 text-sm text-slate-600">
+                      {complaint.address || complaint.barangay || 'Location not recorded'}
+                    </td>
                 </tr>
               ))
             ) : (

@@ -2,6 +2,7 @@ import { Router, type Response } from 'express';
 import { applyBarangayScope, authenticateToken, getScopedBarangayId, requireAssignedBarangay, type AuthenticatedRequest } from "../../middleware/auth";
 import { prisma } from '../../prisma';
 import { analyzeSeverity, generateAIInsights } from "../../services/severityAI/index";
+import { clearSeverityKeywordsCache } from "../../services/severityAI/keyword-store";
 import { broadcastToUser } from '../../sse';
 import { runFraudChecks } from "../../services/fraudDetection";
 
@@ -107,7 +108,7 @@ function ensureReportInAssignedBarangay(report: { barangayId: string | null }, r
 
 router.post('/', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { email, title, description, severity, mediaType, mediaUrl, address } = req.body;
+    const { email, title, description, severity, mediaType, mediaUrl, address, category } = req.body;
 
     let userEmail = email;
 
@@ -161,6 +162,7 @@ router.post('/', authenticateToken, requireAssignedBarangay(), async (req: Authe
       description,
       severity: severity.toUpperCase(),
       address: address || undefined,
+      category: category || undefined,
       user: { connect: { id: existingUser.id } },
       isFlagged: fraudResult.isSuspicious,
       flagType: fraudResult.flags.length > 0 ? fraudResult.flags.map(f => f.type).join(',') : undefined,
@@ -188,6 +190,17 @@ router.post('/', authenticateToken, requireAssignedBarangay(), async (req: Authe
         multimedia: true,
       },
     });
+
+    if (report.category) {
+      const normalizedKeyword = report.category.trim().toLowerCase();
+      const normalizedSeverity = (severity || report.severity).toUpperCase() as 'HIGH' | 'MODERATE' | 'LOW';
+      await prisma.severityKeyword.upsert({
+        where: { keyword: normalizedKeyword },
+        update: { severity: normalizedSeverity },
+        create: { keyword: normalizedKeyword, severity: normalizedSeverity },
+      });
+      clearSeverityKeywordsCache();
+    }
 
     return res.status(201).json({
       message: 'Report created',
@@ -511,7 +524,7 @@ router.post('/:id/resolve', authenticateToken, requireAssignedBarangay(), async 
 router.patch('/:id', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
   const idParam = req.params.id;
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
-  const { status, severity, category, resolvedByName, assignedTo, deadline, resolutionNotes, isCredible } = req.body;
+  const { status, severity, category, resolvedByName, assignedTo, deadline, resolutionNotes, remarks, isCredible } = req.body;
   const normalizedStatus = status ? (status === 'OPEN' ? 'PENDING' : status.toUpperCase()) : undefined;
 
   if (!id) {
@@ -551,6 +564,7 @@ router.patch('/:id', authenticateToken, requireAssignedBarangay(), async (req: A
         ...(assignedTo !== undefined && { assignedTo }),
         ...(deadline && { deadline: new Date(deadline) }),
         ...(resolutionNotes !== undefined && { resolutionNotes }),
+        ...(remarks !== undefined && { remarks }),
         ...(isCredible !== undefined && { isCredible }),
         ...(normalizedStatus === 'RESOLVED' && resolvedById && { resolvedBy: { connect: { id: resolvedById } } }),
         ...(normalizedStatus === 'RESOLVED' && { resolvedAt: new Date() }),
@@ -562,6 +576,17 @@ router.patch('/:id', authenticateToken, requireAssignedBarangay(), async (req: A
         resolvedBy: true,
       },
     });
+
+    if (category) {
+      const normalizedKeyword = category.trim().toLowerCase();
+      const normalizedSeverity = (severity || updated.severity).toUpperCase() as 'HIGH' | 'MODERATE' | 'LOW';
+      await prisma.severityKeyword.upsert({
+        where: { keyword: normalizedKeyword },
+        update: { severity: normalizedSeverity },
+        create: { keyword: normalizedKeyword, severity: normalizedSeverity },
+      });
+      clearSeverityKeywordsCache();
+    }
 
     const datasetExists = await prisma.severityDataset.findUnique({
       where: { reportId: updated.id },
@@ -689,6 +714,7 @@ router.post('/:id/analyze', authenticateToken, requireAssignedBarangay(), async 
       description: report.description,
       mediaType: media?.type,
       mediaUrl: media?.url,
+      category: report.category || undefined,
     });
 
     const insights = await generateAIInsights({
@@ -697,6 +723,7 @@ router.post('/:id/analyze', authenticateToken, requireAssignedBarangay(), async 
       mediaType: media?.type,
       mediaUrl: media?.url,
       currentSeverity: report.severity,
+      category: report.category || undefined,
     });
 
     if (media && (media.type === "VIDEO" || media.type === "AUDIO")) {

@@ -10,6 +10,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -18,8 +19,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { BACKEND_URL, analyzeComplaintWithAI, updateComplaint } from '@/lib/api';
+import { BACKEND_URL, updateComplaint } from '@/lib/api';
 import { Complaint, ComplaintStatus, MediaFile } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 interface ViewReportModalProps {
@@ -30,16 +32,7 @@ interface ViewReportModalProps {
 }
 
 const statusOptions: ComplaintStatus[] = ['OPEN', 'PENDING', 'IN_PROGRESS', 'RESOLVED'];
-const categoryOptions = [
-  'Potholes',
-  'Flooding',
-  'Garbage Dumping',
-  'Fire Hazard',
-  'Noise Complaint',
-  'Other Complaints',
-] as const;
-
-type CategoryOption = (typeof categoryOptions)[number];
+const severityOptions: Complaint['severity'][] = ['LOW', 'MODERATE', 'HIGH'];
 
 function getStatusLabel(status: ComplaintStatus) {
   switch (status) {
@@ -64,19 +57,6 @@ function getStatusColor(status: ComplaintStatus) {
     case 'IN_PROGRESS':
       return 'bg-yellow-50 text-yellow-700 ring-yellow-600/20';
     case 'RESOLVED':
-      return 'bg-green-50 text-green-700 ring-green-600/20';
-    default:
-      return 'bg-white text-slate-700 ring-slate-600/20';
-  }
-}
-
-function getSeverityColor(severity: Complaint['severity']) {
-  switch (severity) {
-    case 'HIGH':
-      return 'bg-red-50 text-red-700 ring-red-600/20';
-    case 'MODERATE':
-      return 'bg-yellow-50 text-yellow-700 ring-yellow-600/20';
-    case 'LOW':
       return 'bg-green-50 text-green-700 ring-green-600/20';
     default:
       return 'bg-white text-slate-700 ring-slate-600/20';
@@ -159,26 +139,23 @@ export function ViewReportModal({
   onClose,
   onSave,
 }: ViewReportModalProps) {
+  const router = useRouter();
   const [selectedStatus, setSelectedStatus] = useState<ComplaintStatus>('OPEN');
+  const [severity, setSeverity] = useState<Complaint['severity']>('LOW');
   const [category, setCategory] = useState<string>('');
+  const [remarks, setRemarks] = useState<string>('');
   const [isCredible, setIsCredible] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [analysisText, setAnalysisText] = useState<string>('');
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   useEffect(() => {
     if (complaint) {
       setSelectedStatus(complaint.status);
+      setSeverity(complaint.severity);
       setCategory(complaint.category || '');
+      setRemarks(complaint.remarks || '');
       setIsCredible(complaint.isCredible || false);
       setErrorMessage(null);
-      const mediaAnalysis = complaint.multimedia?.find(
-        (media) => typeof media.analysis === 'object' && media.analysis?.insights,
-      );
-      setAnalysisText(mediaAnalysis?.analysis?.insights ?? '');
-      setAnalysisError(null);
     }
   }, [complaint]);
 
@@ -192,7 +169,9 @@ export function ViewReportModal({
       const updated = await updateComplaint({
         id: complaint.id,
         status: selectedStatus,
+        severity,
         category,
+        remarks,
         isCredible,
       } as Complaint);
       onSave?.(updated);
@@ -250,12 +229,24 @@ export function ViewReportModal({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <Label htmlFor="report-severity" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Severity
                     </Label>
-                    <span className={`mt-2 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${getSeverityColor(complaint.severity)}`}>
-                      {complaint.severity}
-                    </span>
+                    <Select
+                      value={severity}
+                      onValueChange={(value) => setSeverity(value as Complaint['severity'])}
+                    >
+                      <SelectTrigger id="report-severity" className="mt-2 bg-white dark:bg-white text-black">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-white text-black">
+                        {severityOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div>
@@ -280,27 +271,39 @@ export function ViewReportModal({
                   </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="report-category" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Category
-                  </Label>
-                   <Select
-                     value={category}
-                     onValueChange={(value) => setCategory(value)}
-                   >
-                     <SelectTrigger id="report-category" className="mt-2 bg-white dark:bg-white text-black">
-                       <SelectValue placeholder="Select category" />
-                     </SelectTrigger>
-                     <SelectContent className="bg-white dark:bg-white text-black">
-                       {categoryOptions.map((option) => (
-                         <SelectItem key={option} value={option}>
-                           {option}
-                         </SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
+                 <div>
+                    <Label htmlFor="report-category" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Category
+                    </Label>
+                    <Input
+                      id="report-category"
+                       className="mt-2 bg-white dark:bg-white text-black dark:text-black"
+                      placeholder="e.g. Potholes, Flooding, Fire Hazard, Noise Complaint..."
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      Free-text category used as additional reference for severity analysis.
+                    </p>
                 </div>
-              </div>
+
+                <div>
+                   <Label htmlFor="report-remarks" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                     Remarks
+                   </Label>
+                   <textarea
+                     id="report-remarks"
+                     className="mt-2 w-full rounded-md border border-slate-200 bg-white dark:bg-white p-3 text-sm text-slate-900 dark:text-slate-900 focus:border-blue-500 focus:outline-none"
+                     placeholder="Add any additional remarks or observations..."
+                     value={remarks}
+                     onChange={(e) => setRemarks(e.target.value)}
+                     rows={3}
+                   />
+                   <p className="mt-1 text-xs text-slate-500">
+                     Visible to residents on the mobile app.
+                   </p>
+                </div>
+               </div>
             </div>
 
             {complaint.isFlagged && (
@@ -355,50 +358,6 @@ export function ViewReportModal({
               </div>
             )}
 
-            <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-base font-semibold text-slate-950">AI Issue Analysis</h3>
-                  <p className="text-xs text-slate-500">
-                    Generate a concise analysis of the reported issue.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    if (!complaint) return;
-                    setAnalysisLoading(true);
-                    setAnalysisError(null);
-
-                    try {
-                      const result = await analyzeComplaintWithAI(complaint.id);
-                      setAnalysisText(result.insights);
-                    } catch (err: any) {
-                      setAnalysisError(err.message || 'Failed to analyze issue');
-                    } finally {
-                      setAnalysisLoading(false);
-                    }
-                  }}
-                  disabled={analysisLoading}
-                >
-                  {analysisLoading ? 'Analyzing...' : analysisText ? 'Refresh analysis' : 'Analyze issue'}
-                </Button>
-              </div>
-
-              {analysisError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                  {analysisError}
-                </div>
-              )}
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                {analysisText
-                  ? analysisText
-                  : 'AI analysis will appear here once the report is analyzed. Click the button to run the analysis.'}
-              </div>
-            </div>
-
             <div className="space-y-4">
               <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
                 <h3 className="text-base font-semibold text-slate-950 flex items-center gap-2">
@@ -413,20 +372,36 @@ export function ViewReportModal({
                    <p className="mt-1 text-slate-700 font-medium">
                      {complaint.barangay || 'Location not recorded'}
                    </p>
-                 </div>
+               </div>
 
-                 {complaint.address && (
-                   <div>
-                     <span className="text-xs font-semibold uppercase text-slate-500">
-                       Address
-                     </span>
-                     <p className="mt-1 text-slate-700">
-                       {complaint.address}
-                     </p>
-                   </div>
-                 )}
+                  {complaint.address && (
+                    <div>
+                      <span className="text-xs font-semibold uppercase text-slate-500">
+                        Address
+                      </span>
+                      <p className="mt-1 text-slate-700">
+                        {complaint.address}
+                      </p>
+                    </div>
+                  )}
 
-              </div>
+                   {typeof complaint.latitude === 'number' && typeof complaint.longitude === 'number' && (
+                     <div>
+                       <span className="text-xs font-semibold uppercase text-slate-500">
+                         Map View
+                       </span>
+                       <Button
+                         type="button"
+                         variant="outline"
+                         className="mt-2 w-full justify-center gap-2 border-slate-300 hover:bg-slate-50"
+                         onClick={() => router.push('/map')}
+                       >
+                         Open Map
+                       </Button>
+                     </div>
+                   )}
+
+               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
                 <h3 className="text-base font-semibold text-slate-950 flex items-center gap-2">

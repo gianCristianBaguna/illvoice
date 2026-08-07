@@ -28,6 +28,8 @@ interface Report {
   longitude?: number;
   address?: string;
   multimedia?: { type: string; url: string }[];
+  remarks?: string | null;
+  resolutionNotes?: string | null;
 }
 
 export default function Dashboard() {
@@ -353,6 +355,26 @@ export default function Dashboard() {
                     <Text style={styles.modalSectionLabel}>Description</Text>
                     <Text style={styles.modalDescription}>{selectedReport.description}</Text>
                   </View>
+
+                  {selectedReport.remarks && (
+                    <View style={styles.modalRemarksSection}>
+                      <Text style={styles.modalSectionLabel}>Remarks</Text>
+                      <View style={styles.modalRemarksBox}>
+                        <Ionicons name="chatbubble-ellipses-outline" size={16} color="#1E3A8A" />
+                        <Text style={styles.modalRemarksText}>{selectedReport.remarks}</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {selectedReport.resolutionNotes && (
+                    <View style={styles.modalResolutionSection}>
+                      <Text style={styles.modalSectionLabel}>Resolution Notes</Text>
+                      <View style={styles.modalResolutionBox}>
+                        <Ionicons name="checkmark-circle-outline" size={16} color="#34c759" />
+                        <Text style={styles.modalResolutionText}>{selectedReport.resolutionNotes}</Text>
+                      </View>
+                    </View>
+                  )}
 
                   {selectedReport.address && (
                     <View style={styles.modalLocationSection}>
@@ -825,6 +847,44 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fb',
     padding: 16,
     borderRadius: 12,
+  },
+  modalRemarksSection: {
+    marginBottom: 20,
+  },
+  modalRemarksBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#eef2ff',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#c7d2fe',
+  },
+  modalRemarksText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1E3A8A',
+    lineHeight: 20,
+  },
+  modalResolutionSection: {
+    marginBottom: 20,
+  },
+  modalResolutionBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#f0fdf4',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  modalResolutionText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#166534',
+    lineHeight: 20,
   },
   modalLocationSection: {
     marginBottom: 20,

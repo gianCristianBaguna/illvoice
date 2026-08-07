@@ -177,72 +177,66 @@ export default function ReportsPage() {
                 </span>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scrollbar-light">
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="px-5 py-3 text-slate-600">ID</TableHead>
-                      <TableHead className="px-5 py-3 text-slate-600">Title</TableHead>
-                      <TableHead className="px-5 py-3 text-slate-600">Severity</TableHead>
-                      <TableHead className="px-5 py-3 text-slate-600">Status</TableHead>
-                      <TableHead className="px-5 py-3 text-slate-600">Location</TableHead>
-                      <TableHead className="px-5 py-3 text-slate-600">Reported</TableHead>
-                      <TableHead className="px-5 py-3 text-right text-slate-600">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                   <TableHeader>
+                     <TableRow>
+                       <TableHead className="px-5 py-3 text-slate-600">ID</TableHead>
+                       <TableHead className="px-5 py-3 text-slate-600">Title</TableHead>
+                       <TableHead className="px-5 py-3 text-slate-600">Severity</TableHead>
+                       <TableHead className="px-5 py-3 text-slate-600">Status</TableHead>
+                       <TableHead className="px-5 py-3 text-slate-600">Location</TableHead>
+                       <TableHead className="px-5 py-3 text-slate-600">Reported</TableHead>
+                     </TableRow>
+                   </TableHeader>
                   <TableBody>
-                    {recentReports.length > 0 ? (
-                      recentReports.map((report) => (
-                        <TableRow key={report.id}>
-                          <TableCell className="px-5 py-4 font-medium text-blue-600">
-                            #{report.id.slice(0, 8)}
-                          </TableCell>
-                          <TableCell className="px-5 py-4">
-                            <div>
-                              <p className="font-medium text-slate-950">{report.title}</p>
-                              <p className="text-xs text-slate-500">{report.userName || 'Unknown user'}</p>
-                            </div>
-                          </TableCell>
-                           <TableCell className="px-5 py-4">
-                             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getSeverityColor(report.severity)}`}>
-                               {report.severity}
-                             </span>
-                             {report.isFlagged && (
-                               <span className="ml-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">
-                                 FLAGGED
-                               </span>
-                             )}
+                     {recentReports.length > 0 ? (
+                       recentReports.map((report) => (
+                         <TableRow
+                           key={report.id}
+                           onClick={() => setViewReport(report)}
+                           className="cursor-pointer hover:bg-slate-50 transition-colors"
+                         >
+                           <TableCell className="px-5 py-4 font-medium text-blue-600">
+                             #{report.id.slice(0, 8)}
                            </TableCell>
-                          <TableCell className="px-5 py-4">
-                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getStatusColor(report.status)}`}>
-                              {getStatusLabel(report.status)}
-                            </span>
-                          </TableCell>
+                           <TableCell className="px-5 py-4">
+                             <div>
+                               <p className="font-medium text-slate-950">{report.title}</p>
+                               <p className="text-xs text-slate-500">{report.userName || 'Unknown user'}</p>
+                             </div>
+                           </TableCell>
+                            <TableCell className="px-5 py-4">
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getSeverityColor(report.severity)}`}>
+                                {report.severity}
+                              </span>
+                              {report.isFlagged && (
+                                <span className="ml-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                                  FLAGGED
+                                </span>
+                              )}
+                            </TableCell>
+                           <TableCell className="px-5 py-4">
+                             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getStatusColor(report.status)}`}>
+                               {getStatusLabel(report.status)}
+                             </span>
+                           </TableCell>
                            <TableCell className="px-5 py-4 text-slate-600">
                              {report.address || report.barangay || 'Location not recorded'}
                            </TableCell>
-                          <TableCell className="px-5 py-4 text-slate-600">
-                            {new Date(report.reportedDate).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell className="px-5 py-4 text-right">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setViewReport(report)}
-                            >
-                              View
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={7} className="px-5 py-10 text-center text-slate-500">
-                          No recent reports found.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
+                           <TableCell className="px-5 py-4 text-slate-600">
+                             {new Date(report.reportedDate).toLocaleDateString()}
+                           </TableCell>
+                         </TableRow>
+                       ))
+                     ) : (
+                       <TableRow>
+                         <TableCell colSpan={6} className="px-5 py-10 text-center text-slate-500">
+                           No recent reports found.
+                         </TableCell>
+                       </TableRow>
+                     )}
+                   </TableBody>
                 </Table>
               </div>
             </div>

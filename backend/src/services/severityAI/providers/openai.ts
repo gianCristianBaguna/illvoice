@@ -207,7 +207,8 @@ export const openaiTextProvider: TextProvider = {
     description: string,
     severity: string,
     hazardsDetected?: string[],
-    audioTranscript?: string
+    audioTranscript?: string,
+    category?: string
   ): Promise<string> {
     const client = getOpenAIClient();
     if (!client) {
@@ -219,6 +220,7 @@ export const openaiTextProvider: TextProvider = {
 Title: ${title}
 Description: ${description}
 Severity: ${severity}
+${category ? `Category: ${category}` : ""}
 ${hazardsDetected?.length ? `Detected Hazards: ${hazardsDetected.join(", ")}` : ""}
 ${audioTranscript ? `Audio Report: ${audioTranscript}` : ""}
 
@@ -248,7 +250,8 @@ Include:
     title: string,
     description: string,
     transcribedAudio?: string,
-    imageAnalysis?: VisionResult
+    imageAnalysis?: VisionResult,
+    category?: string
   ): Promise<string> {
     const client = getOpenAIClient();
     if (!client) {
@@ -256,6 +259,9 @@ Include:
     }
 
     let fullDescription = `Title: ${title}\nDescription: ${description}`;
+    if (category) {
+      fullDescription += `\nReport Category: ${category}`;
+    }
 
     if (transcribedAudio) {
       fullDescription += `\n\nTranscribed Audio Report: ${transcribedAudio}`;
@@ -329,7 +335,7 @@ Return ONLY the word: LOW | MODERATE | HIGH`;
       return "LOW";
     } catch (err: any) {
       console.error("❌ Multimodal severity analysis error:", err.message);
-      return await getDbRuleBasedSeverity(title, description, transcribedAudio);
+      return await getDbRuleBasedSeverity(title, description, transcribedAudio, category);
     }
   },
 };

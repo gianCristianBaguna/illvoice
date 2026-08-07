@@ -11,7 +11,7 @@ export function ActivityFeed() {
     const loadActivities = async () => {
       try {
         const feedActivities = await fetchActivityFeed();
-        setActivities(feedActivities);
+        setActivities(feedActivities.slice(0, 4));
       } catch (err) {
         console.error('Failed to fetch activity feed:', err);
       } finally {
@@ -32,7 +32,7 @@ export function ActivityFeed() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-slate-900">Live Activity</h3>
         </div>
-        <div className="space-y-3">
+        <div className="max-h-64 overflow-y-auto scrollbar-light">
           <p className="text-sm text-slate-500">Loading activity...</p>
         </div>
       </div>
@@ -44,7 +44,7 @@ export function ActivityFeed() {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-slate-900">Live Activity</h3>
       </div>
-      <div className="space-y-3">
+      <div className="max-h-64 overflow-y-auto scrollbar-light space-y-3">
         {activities.length > 0 ? (
           activities.map((activity) => (
             <div key={activity.id} className="flex items-start gap-3 pb-3 border-b border-slate-200 last:border-0 last:pb-0">

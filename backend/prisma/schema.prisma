@@ -49,6 +49,7 @@ model Report {
   assignedTo     String?      // Team member name for assignment
   deadline       DateTime?    // Planned resolution deadline
   resolutionNotes String?     // Notes when resolving
+  remarks         String?     // General remarks from barangay officials
   isCredible     Boolean      @default(false)
   isFlagged      Boolean      @default(false)
   flagType       String?

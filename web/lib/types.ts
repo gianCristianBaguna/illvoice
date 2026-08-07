@@ -18,6 +18,7 @@ export interface MapReportComplaint {
   assignedTo?: string | null;
   deadline?: string | null;
   resolutionNotes?: string | null;
+  remarks?: string | null;
   category: string;
   userEmail: string;
   userName: string;

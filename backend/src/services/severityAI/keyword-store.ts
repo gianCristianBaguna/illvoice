@@ -60,9 +60,10 @@ export async function loadSeverityKeywords(): Promise<SeverityKeywordMap> {
 export async function getRuleBasedSeverity(
   title: string,
   description: string,
-  audioText?: string
+  audioText?: string,
+  category?: string
 ): Promise<SeverityLevel> {
-  const text = `${title} ${description} ${audioText || ''}`.toLowerCase();
+  const text = `${title} ${description} ${audioText || ''} ${category || ''}`.toLowerCase();
   const severityKeywords = await loadSeverityKeywords();
 
   const highMatch = severityKeywords.HIGH.some((keyword) => text.includes(keyword.toLowerCase()));

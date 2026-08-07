@@ -116,14 +116,16 @@ export async function analyzeSeverity({
   description,
   mediaType,
   mediaUrl,
+  category,
 }: {
   title: string;
   description: string;
   mediaType?: string;
   mediaUrl?: string;
+  category?: string;
 }): Promise<string> {
   if (!mediaType || mediaType === "TEXT") {
-    return getRuleBasedSeverity(title, description);
+    return getRuleBasedSeverity(title, description, undefined, category);
   }
 
   let transcribedAudio = "";
@@ -165,10 +167,10 @@ export async function analyzeSeverity({
   }
 
   try {
-    return await textProvider.classifySeverity(title, description, transcribedAudio, imageAnalysis ?? undefined);
+    return await textProvider.classifySeverity(title, description, transcribedAudio, imageAnalysis ?? undefined, category);
   } catch (err: any) {
     console.error("❌ AI analysis failed, falling back to rules:", err.message);
-    return getRuleBasedSeverity(title, description, transcribedAudio);
+    return getRuleBasedSeverity(title, description, transcribedAudio, category);
   }
 }
 
@@ -178,12 +180,14 @@ export async function generateAIInsights({
   mediaType,
   mediaUrl,
   currentSeverity,
+  category,
 }: {
   title: string;
   description: string;
   mediaType?: string;
   mediaUrl?: string;
   currentSeverity: string;
+  category?: string;
 }): Promise<string> {
   let transcribedAudio = "";
   let hazardsDetected: string[] = [];
@@ -228,7 +232,8 @@ export async function generateAIInsights({
       description,
       currentSeverity,
       hazardsDetected.length > 0 ? hazardsDetected : undefined,
-      transcribedAudio || undefined
+      transcribedAudio || undefined,
+      category
     );
   } catch (err: any) {
     console.error("❌ AI insights generation failed, using fallback:", err.message);

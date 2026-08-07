@@ -37,6 +37,7 @@ function mapReportToComplaint(r: any): Complaint {
     assignedTo: r.assignedTo || undefined,
     deadline: r.deadline || undefined,
     resolutionNotes: r.resolutionNotes || undefined,
+    remarks: r.remarks || undefined,
     category: r.category || '',
     userEmail: r.user?.email || '',
     userName: r.user?.name || '',
@@ -124,6 +125,7 @@ export async function updateComplaint(complaint: Complaint): Promise<Complaint> 
   if (complaint.assignedTo !== undefined) payload.assignedTo = complaint.assignedTo;
   if (complaint.deadline !== undefined) payload.deadline = complaint.deadline;
   if (complaint.resolutionNotes !== undefined) payload.resolutionNotes = complaint.resolutionNotes;
+  if (complaint.remarks !== undefined) payload.remarks = complaint.remarks;
   if (complaint.isCredible !== undefined) payload.isCredible = complaint.isCredible;
   if (complaint.category !== undefined) payload.category = complaint.category;
 

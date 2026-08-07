@@ -245,12 +245,13 @@ export const geminiVisionProvider: VisionProvider = {
 };
 
 export const geminiTextProvider: TextProvider = {
-  async generateInsights(
+   async generateInsights(
     title: string,
     description: string,
     severity: string,
     hazardsDetected?: string[],
-    audioTranscript?: string
+    audioTranscript?: string,
+    category?: string
   ): Promise<string> {
     const genai = getGenAIClient();
     if (!genai) {
@@ -262,6 +263,7 @@ export const geminiTextProvider: TextProvider = {
 Title: ${title}
 Description: ${description}
 Severity: ${severity}
+${category ? `Category: ${category}` : ""}
 ${hazardsDetected?.length ? `Detected Hazards: ${hazardsDetected.join(", ")}` : ""}
 ${audioTranscript ? `Audio Report: ${audioTranscript}` : ""}
 
@@ -287,7 +289,8 @@ Include:
     title: string,
     description: string,
     transcribedAudio?: string,
-    imageAnalysis?: VisionResult
+    imageAnalysis?: VisionResult,
+    category?: string
   ): Promise<string> {
     const genai = getGenAIClient();
     if (!genai) {
@@ -295,6 +298,9 @@ Include:
     }
 
     let fullDescription = `Title: ${title}\nDescription: ${description}`;
+    if (category) {
+      fullDescription += `\nReport Category: ${category}`;
+    }
 
     if (transcribedAudio) {
       fullDescription += `\n\nTranscribed Audio Report: ${transcribedAudio}`;
@@ -365,7 +371,7 @@ Return ONLY the word: LOW | MODERATE | HIGH`;
       return "LOW";
     } catch (err: any) {
       console.error("❌ Gemini severity analysis error:", err.message);
-      return getRuleBasedSeverity(title, description, transcribedAudio);
+      return getRuleBasedSeverity(title, description, transcribedAudio, category);
     }
   },
 };

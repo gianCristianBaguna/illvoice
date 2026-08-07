@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -26,6 +27,8 @@ interface Report {
   longitude?: number;
   address?: string;
   multimedia?: { type: string; url: string }[];
+  remarks?: string | null;
+  resolutionNotes?: string | null;
 }
 
 interface HistoryStats {
@@ -48,6 +51,8 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'RESOLVED'>('ALL');
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
   const { userEmail, idToken } = useAuth();
 
   const fetchReports = useCallback(async (isRefresh = false) => {
@@ -127,6 +132,11 @@ export default function HistoryScreen() {
     }
   };
 
+  const openReportDetail = (report: Report) => {
+    setSelectedReport(report);
+    setModalVisible(true);
+  };
+
   const filteredReports = reports.filter((report) => {
     if (selectedFilter === 'ALL') return true;
     return report.status === selectedFilter;
@@ -135,7 +145,7 @@ export default function HistoryScreen() {
   const renderReportItem = ({ item }: { item: Report }) => {
     const statusConfig = getStatusConfig(item.status);
     return (
-      <TouchableOpacity style={styles.reportCard} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.reportCard} activeOpacity={0.7} onPress={() => openReportDetail(item)}>
         <View style={styles.reportHeader}>
           <View style={styles.reportCardLeft}>
             <View style={[styles.statusDot, { backgroundColor: statusConfig.color }]} />
@@ -159,6 +169,7 @@ export default function HistoryScreen() {
               {item.severity}
             </Text>
           </View>
+          <Ionicons name="chevron-forward" size={16} color="#c7c7cc" style={styles.reportCardArrow} />
         </View>
 
         <Text style={styles.reportDescription} numberOfLines={2}>{item.description}</Text>
@@ -312,6 +323,140 @@ export default function HistoryScreen() {
           />
         )}
       </ScrollView>
+
+      {/* Report Detail Modal */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {selectedReport && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Report Details</Text>
+                  <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCloseButton}>
+                    <Ionicons name="close" size={24} color="#666" />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+                  <View style={styles.modalReportHeader}>
+                    <Text style={styles.modalReportTitle}>{selectedReport.title}</Text>
+                    <View style={[
+                      styles.modalStatusBadge,
+                      { backgroundColor: getStatusConfig(selectedReport.status).color + '20' }
+                    ]}>
+                      <Ionicons name={getStatusConfig(selectedReport.status).icon} size={14} color={getStatusConfig(selectedReport.status).color} />
+                      <Text style={[styles.modalStatusText, { color: getStatusConfig(selectedReport.status).color }]}>
+                        {getStatusConfig(selectedReport.status).label}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.modalDetailRow}>
+                    <View style={styles.modalDetailItem}>
+                      <Ionicons name="calendar-outline" size={18} color="#8e8e93" />
+                      <Text style={styles.modalDetailLabel}>Date Reported</Text>
+                      <Text style={styles.modalDetailValue}>
+                        {new Date(selectedReport.createdAt).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {selectedReport.severity && (
+                    <View style={styles.modalDetailRow}>
+                      <View style={styles.modalDetailItem}>
+                        <Ionicons name="warning-outline" size={18} color="#8e8e93" />
+                        <Text style={styles.modalDetailLabel}>Severity</Text>
+                        <Text style={[styles.modalDetailValue, { color: getSeverityColor(selectedReport.severity) }]}>
+                          {selectedReport.severity}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={styles.modalDescriptionSection}>
+                    <Text style={styles.modalSectionLabel}>Description</Text>
+                    <Text style={styles.modalDescription}>{selectedReport.description}</Text>
+                  </View>
+
+                  {selectedReport.remarks && (
+                    <View style={styles.modalRemarksSection}>
+                      <Text style={styles.modalSectionLabel}>Remarks</Text>
+                      <View style={styles.modalRemarksBox}>
+                        <Ionicons name="chatbubble-ellipses-outline" size={16} color="#1E3A8A" />
+                        <Text style={styles.modalRemarksText}>{selectedReport.remarks}</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {selectedReport.resolutionNotes && (
+                    <View style={styles.modalResolutionSection}>
+                      <Text style={styles.modalSectionLabel}>Resolution Notes</Text>
+                      <View style={styles.modalResolutionBox}>
+                        <Ionicons name="checkmark-circle-outline" size={16} color="#34c759" />
+                        <Text style={styles.modalResolutionText}>{selectedReport.resolutionNotes}</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {selectedReport.address && (
+                    <View style={styles.modalLocationSection}>
+                    <Text style={styles.modalSectionLabel}>Location</Text>
+                    <View style={styles.modalLocationRow}>
+                      <Ionicons name="location-outline" size={16} color="#1E3A8A" />
+                      <Text style={styles.modalLocationText} numberOfLines={2}>
+                        {selectedReport.address}
+                      </Text>
+                    </View>
+                  </View>
+                  )}
+
+                  {!selectedReport.address && selectedReport.latitude && selectedReport.longitude && (
+                    <View style={styles.modalLocationSection}>
+                    <Text style={styles.modalSectionLabel}>Location</Text>
+                    <View style={styles.modalLocationRow}>
+                      <Ionicons name="location-outline" size={16} color="#1E3A8A" />
+                      <Text style={styles.modalLocationText}>
+                      {selectedReport.latitude.toFixed(6)}, {selectedReport.longitude.toFixed(6)}
+                      </Text>
+                    </View>
+                  </View>
+                  )}
+
+                  {selectedReport.multimedia && selectedReport.multimedia.length > 0 && (
+                    <View style={styles.modalMediaSection}>
+                      <Text style={styles.modalSectionLabel}>Attachments</Text>
+                      <View style={styles.modalMediaGrid}>
+                        {selectedReport.multimedia.map((media, index) => (
+                          <View key={index} style={styles.modalMediaItem}>
+                            <Ionicons name="image-outline" size={24} color="#8e8e93" />
+                            <Text style={styles.modalMediaType}>{media.type}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </ScrollView>
+
+                <TouchableOpacity style={styles.modalCloseButtonRow} onPress={() => setModalVisible(false)}>
+                  <Text style={styles.modalCloseButtonText}>Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <View style={styles.bottomSpacing} />
     </SafeAreaView>
   );
 }
@@ -520,6 +665,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  reportCardArrow: {
+    marginLeft: 4,
+  },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -540,5 +688,204 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+    paddingBottom: 34,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f5',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1E3A8A',
+    letterSpacing: -0.3,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  modalReportHeader: {
+    marginBottom: 20,
+  },
+  modalReportTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1a1a2e',
+    marginBottom: 12,
+    lineHeight: 28,
+  },
+  modalStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 6,
+  },
+  modalStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalDetailRow: {
+    marginBottom: 16,
+  },
+  modalDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#f8f9fb',
+    padding: 14,
+    borderRadius: 12,
+  },
+  modalDetailLabel: {
+    fontSize: 13,
+    color: '#8e8e93',
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  modalDetailValue: {
+    fontSize: 14,
+    color: '#1a1a2e',
+    fontWeight: '600',
+    marginLeft: 'auto',
+  },
+  modalDescriptionSection: {
+    marginBottom: 20,
+  },
+  modalSectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E3A8A',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  modalDescription: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    backgroundColor: '#f8f9fb',
+    padding: 16,
+    borderRadius: 12,
+  },
+  modalRemarksSection: {
+    marginBottom: 20,
+  },
+  modalRemarksBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#eef2ff',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#c7d2fe',
+  },
+  modalRemarksText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1E3A8A',
+    lineHeight: 20,
+  },
+  modalResolutionSection: {
+    marginBottom: 20,
+  },
+  modalResolutionBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#f0fdf4',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  modalResolutionText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#166534',
+    lineHeight: 20,
+  },
+  modalLocationSection: {
+    marginBottom: 20,
+  },
+  modalLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f8f9fb',
+    padding: 14,
+    borderRadius: 12,
+  },
+  modalLocationText: {
+    fontSize: 14,
+    color: '#1E3A8A',
+    fontWeight: '600',
+    fontFamily: 'monospace',
+  },
+  modalMediaSection: {
+    marginBottom: 20,
+  },
+  modalMediaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  modalMediaItem: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  modalMediaType: {
+    fontSize: 10,
+    color: '#8e8e93',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  modalCloseButtonRow: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: '#1E3A8A',
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  bottomSpacing: {
+    height: 40,
   },
 });
