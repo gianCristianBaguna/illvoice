@@ -1,9 +1,11 @@
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm install
+
+RUN apt-get update -y && apt-get install -y openssl
 
 COPY prisma.config.ts ./
 COPY prisma ./prisma
@@ -15,7 +17,7 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app
 
