@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
@@ -17,6 +18,7 @@ export function AdminLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
 
@@ -52,7 +54,7 @@ export function AdminLogin() {
         }
 
         login(data.token, data.email, data.role, data.barangayId, data.emailVerified);
-        if (!data.emailVerified && data.role !== 'ADMIN') {
+        if (!data.emailVerified && data.role !== 'ADMIN' && data.role !== 'BARANGAY_OFFICIAL') {
           router.push('/verify-email');
         } else if (data.role === 'BARANGAY_OFFICIAL') {
           router.push('/barangay-dashboard');
@@ -118,14 +120,16 @@ export function AdminLogin() {
         throw new Error(msg);
       }
 
-const data = await response.json();
+      const data = await response.json();
 
-        login(data.token, data.email, data.role, data.barangayId || null, data.emailVerified);
-        if (!data.emailVerified && data.role !== 'ADMIN') {
-          router.push('/verify-email');
-        } else {
-          router.push('/dashboard');
-        }
+      login(data.token, data.email, data.role, data.barangayId || null, data.emailVerified);
+      if (!data.emailVerified && data.role !== 'ADMIN' && data.role !== 'BARANGAY_OFFICIAL') {
+        router.push('/verify-email');
+      } else if (data.role === 'BARANGAY_OFFICIAL') {
+        router.push('/barangay-dashboard');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
@@ -134,76 +138,110 @@ const data = await response.json();
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">ILLVOICE Admin</h1>
-        <p className="text-gray-600 mb-8">Community Issue Monitoring Dashboard</p>
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center relative overflow-hidden">
+      {/* Background effects */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-950/30 via-slate-950 to-indigo-950/30"></div>
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-600/10 rounded-full blur-3xl"></div>
+      <div className="absolute bottom-0 left-1/4 w-[400px] h-[400px] bg-indigo-600/5 rounded-full blur-3xl"></div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800">
-              {error}
+      {/* Subtle grid pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20"></div>
+
+      <div className="relative z-10 w-full max-w-sm px-4">
+        <div className="bg-slate-900/60 backdrop-blur-2xl rounded-3xl shadow-2xl p-8 border border-slate-800/50">
+          {/* Logo */}
+          <div className="flex flex-col items-center mb-8">
+            <div className="relative mb-4">
+              <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full"></div>
+              <Image src="/whitelogo.png" alt="ILLVoice logo" width={200} height={50} className="h-14 w-auto object-contain relative" />
             </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-black mb-1">
-              Admin Email
-            </label>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@barangay.gov"
-              required
-              className="bg-white dark:bg-white text-black"
-            />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-black mb-1">
-              Password
-            </label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              className="bg-white dark:bg-white text-black"
-            />
+          <form onSubmit={handleLogin} className="space-y-5">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Email
+              </label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@illvoice.local"
+                required
+                className="bg-slate-800/50 text-white border-slate-700/50 placeholder:text-slate-500 focus:border-blue-500/50 focus:ring-blue-500/20 h-11"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Password
+              </label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="bg-slate-800/50 text-white border-slate-700/50 placeholder:text-slate-500 focus:border-blue-500/50 focus:ring-blue-500/20 h-11 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
+                >
+                  {showPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.292 4.292M3 3l18 18" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium h-11 rounded-xl shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 transition-all duration-200"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Signing in...
+                </span>
+              ) : (
+                'Sign In'
+              )}
+            </Button>
+          </form>
+
+          <div className="my-6 flex items-center gap-3">
+            <div className="flex-1 h-px bg-slate-700/50"></div>
+            <span className="text-slate-500 text-xs uppercase tracking-wider">or</span>
+            <div className="flex-1 h-px bg-slate-700/50"></div>
           </div>
 
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700"
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </Button>
-        </form>
-
-        <div className="my-6 flex items-center gap-3">
-          <div className="flex-1 h-px bg-gray-300"></div>
-          <span className="text-gray-500 text-sm">Or continue with</span>
-          <div className="flex-1 h-px bg-gray-300"></div>
+          <div id="google-signin-button" className="flex justify-center"></div>
         </div>
 
-        <div id="google-signin-button" className="flex justify-center"></div>
-
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-800">
-          <p className="font-semibold mb-2">Demo Credentials:</p>
-          <p>Email: admin@demo.gov</p>
-          <p>Password: admin123</p>
-          <p className="mt-2 text-xs">Role: BARANGAY OFFICIAL</p>
-        </div>
-
-        <div className="mt-4 p-4 bg-green-50 rounded-lg text-sm text-green-800">
-          <p className="font-semibold mb-2">Admin Credentials:</p>
-          <p>Email: admin@illvoice.local</p>
-          <p>Password: admin123</p>
-          <p className="mt-2 text-xs">Role: ADMIN (sees all reports)</p>
-        </div>
+        {/* Footer */}
+        <p className="text-center text-slate-500 text-xs mt-6">
+          Secured by ILLVoice
+        </p>
       </div>
     </div>
   );

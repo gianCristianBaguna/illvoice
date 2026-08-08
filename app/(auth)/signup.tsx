@@ -1,4 +1,4 @@
-import { useAuth } from '@/contexts/auth-context';
+import { useAuth, decodeJwtRole } from '@/contexts/auth-context';
 import { BACKEND_URL } from '@/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,7 +28,7 @@ export default function SignUpScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { setUserEmail, setUserName, setUserPhone, setIdToken, setAuthMethod, setEmailVerified } = useAuth();
+  const { setUserEmail, setUserName, setUserPhone, setIdToken, setUserRole, setAuthMethod, setEmailVerified } = useAuth();
 
   const handleSignUp = async () => {
     if (!email.trim() || !password.trim() || !fullName.trim() || !phoneNumber.trim()) {
@@ -77,12 +77,14 @@ export default function SignUpScreen() {
           setUserName(loginResult.user.name);
           setUserPhone(loginResult.user.phoneNumber || null);
           setIdToken(loginResult.token);
+          setUserRole(decodeJwtRole(loginResult.token));
           setAuthMethod('USERNAME_PASSWORD');
           setEmailVerified(loginResult.user.emailVerified || false);
           await AsyncStorage.multiSet([
             ['idToken', loginResult.token],
             ['userEmail', loginResult.user.email],
             ['userName', loginResult.user.name || ''],
+            ['userRole', loginResult.user.role || ''],
             ['phoneNumber', loginResult.user.phoneNumber || ''],
             ['authMethod', 'USERNAME_PASSWORD'],
             ['emailVerified', String(loginResult.user.emailVerified || false)],
@@ -122,7 +124,7 @@ export default function SignUpScreen() {
 
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/images/LoginLogo.png')}
+            source={require('../../assets/images/ILLVOICE-LOGO.png')}
           />
         </View>
         <Text style={styles.sectionTitle}>Register your account</Text>

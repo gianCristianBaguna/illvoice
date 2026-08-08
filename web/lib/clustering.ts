@@ -134,12 +134,6 @@ function normalizeText(text: string): string {
     .join(' ');
 }
 
-function getTitleKey(title: string): string {
-  const normalized = normalizeText(title);
-  const words = normalized.split(/\s+/).filter(Boolean);
-  return words.slice(0, 5).join(' ');
-}
-
 function getLocationKey(c: Complaint): string {
   if (c.barangay) {
     return c.barangay.toLowerCase().trim();
@@ -225,8 +219,7 @@ export function clusterComplaints(
     }
 
     const locationKey = getLocationKey(c);
-    const titleKey = getTitleKey(c.title || c.description || theme);
-    const key = `${theme}::${locationKey}::${titleKey}`;
+    const key = `${theme}::${locationKey}`;
     if (!groups.has(key)) groups.set(key, []);
     const list = groups.get(key)!;
     list.push(c);
@@ -239,7 +232,8 @@ export function clusterComplaints(
   for (const [key, members] of groups) {
     if (members.length < minClusterSize) continue;
 
-    const [theme, barangay] = key.split('::');
+    const [theme, ...locationParts] = key.split('::');
+    const barangay = locationParts.join('::');
     const severity: Record<SeverityLevel, number> = { HIGH: 0, MODERATE: 0, LOW: 0 };
     const status: Record<ComplaintStatus, number> = {
       OPEN: 0,

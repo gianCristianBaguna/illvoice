@@ -83,7 +83,7 @@ export default function ReportsPage() {
       return;
     }
 
-    if (!emailVerified && adminRole !== 'ADMIN') {
+    if (!emailVerified && adminRole !== 'ADMIN' && adminRole !== 'BARANGAY_OFFICIAL') {
       router.replace('/verify-email');
       return;
     }
@@ -131,7 +131,7 @@ export default function ReportsPage() {
                   Monitor complaints and update report status from one place
                 </p>
               </div>
-              <Button variant="destructive" onClick={handleLogout} size="sm">
+              <Button onClick={handleLogout} size="sm" className="bg-red-600 hover:bg-red-700 text-white">
                 Sign Out
               </Button>
             </div>
@@ -179,16 +179,17 @@ export default function ReportsPage() {
 
               <div className="overflow-x-auto scrollbar-light">
                 <Table>
-                   <TableHeader>
-                     <TableRow>
-                       <TableHead className="px-5 py-3 text-slate-600">ID</TableHead>
-                       <TableHead className="px-5 py-3 text-slate-600">Title</TableHead>
-                       <TableHead className="px-5 py-3 text-slate-600">Severity</TableHead>
-                       <TableHead className="px-5 py-3 text-slate-600">Status</TableHead>
-                       <TableHead className="px-5 py-3 text-slate-600">Location</TableHead>
-                       <TableHead className="px-5 py-3 text-slate-600">Reported</TableHead>
-                     </TableRow>
-                   </TableHeader>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="px-5 py-3 text-slate-600">ID</TableHead>
+                        <TableHead className="px-5 py-3 text-slate-600">Title</TableHead>
+                        <TableHead className="px-5 py-3 text-slate-600">Severity</TableHead>
+                        <TableHead className="px-5 py-3 text-slate-600">Status</TableHead>
+                        <TableHead className="px-5 py-3 text-slate-600">Verified</TableHead>
+                        <TableHead className="px-5 py-3 text-slate-600">Location</TableHead>
+                        <TableHead className="px-5 py-3 text-slate-600">Reported</TableHead>
+                      </TableRow>
+                    </TableHeader>
                   <TableBody>
                      {recentReports.length > 0 ? (
                        recentReports.map((report) => (
@@ -216,24 +217,35 @@ export default function ReportsPage() {
                                 </span>
                               )}
                             </TableCell>
-                           <TableCell className="px-5 py-4">
-                             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getStatusColor(report.status)}`}>
-                               {getStatusLabel(report.status)}
-                             </span>
-                           </TableCell>
-                           <TableCell className="px-5 py-4 text-slate-600">
-                             {report.address || report.barangay || 'Location not recorded'}
-                           </TableCell>
-                           <TableCell className="px-5 py-4 text-slate-600">
-                             {new Date(report.reportedDate).toLocaleDateString()}
-                           </TableCell>
+                            <TableCell className="px-5 py-4">
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getStatusColor(report.status)}`}>
+                                {getStatusLabel(report.status)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="px-5 py-4">
+                              {report.userEmailVerified ? (
+                                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                                  Verified
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-slate-500/20">
+                                  Unverified
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="px-5 py-4 text-slate-600">
+                              {report.address || report.barangay || 'Location not recorded'}
+                            </TableCell>
+                            <TableCell className="px-5 py-4 text-slate-600">
+                              {new Date(report.reportedDate).toLocaleDateString()}
+                            </TableCell>
                          </TableRow>
                        ))
                      ) : (
                        <TableRow>
-                         <TableCell colSpan={6} className="px-5 py-10 text-center text-slate-500">
-                           No recent reports found.
-                         </TableCell>
+                          <TableCell colSpan={7} className="px-5 py-10 text-center text-slate-500">
+                            No recent reports found.
+                          </TableCell>
                        </TableRow>
                      )}
                    </TableBody>

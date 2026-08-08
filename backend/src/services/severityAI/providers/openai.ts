@@ -24,7 +24,7 @@ async function resolveImageUrl(imageUrl: string): Promise<string> {
   return imageUrl;
 }
 
-import { getRuleBasedSeverity as getDbRuleBasedSeverity } from "../keyword-store";
+import { getRuleBasedSeverity as getDbRuleBasedSeverity, getHazardSeverity } from "../keyword-store";
 import { AudioProvider, TextProvider, VisionProvider, VisionResult } from "./interface";
 
 let openai: OpenAI | null = null;
@@ -335,6 +335,14 @@ Return ONLY the word: LOW | MODERATE | HIGH`;
       return "LOW";
     } catch (err: any) {
       console.error("❌ Multimodal severity analysis error:", err.message);
+      
+      if (imageAnalysis?.hazards?.length) {
+        const hazardSeverity = await getHazardSeverity(imageAnalysis.hazards);
+        if (hazardSeverity !== 'LOW') {
+          return hazardSeverity;
+        }
+      }
+      
       return await getDbRuleBasedSeverity(title, description, transcribedAudio, category);
     }
   },

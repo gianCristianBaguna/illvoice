@@ -8,8 +8,9 @@ import { AlertBanner } from '@/components/alert-banner';
 import { ComplaintsByHazardChart, ComplaintsByMonthChart, ResolutionRateChart } from '@/components/dashboard-charts';
 import { Sidebar } from '@/components/sidebar';
 import { Button } from '@/components/ui/button';
+import { BurstClustersModal } from '@/components/BurstClustersModal';
 import { useAuth } from '@/contexts/auth-context';
-import { fetchBarangayInfo, fetchComplaints } from '@/lib/api';
+import { fetchBarangayInfo, fetchComplaints, fetchComplaintById } from '@/lib/api';
 import { Complaint } from '@/lib/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -21,6 +22,7 @@ export default function BarangayDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [viewComplaint, setViewComplaint] = useState<Complaint | null>(null);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
+  const [showBurstModal, setShowBurstModal] = useState(false);
   const [barangayName, setBarangayName] = useState<string | null>(null);
   const { isAuthenticated, logout, barangayId, adminRole, emailVerified } = useAuth();
   const router = useRouter();
@@ -50,7 +52,7 @@ export default function BarangayDashboardPage() {
       return;
     }
 
-    if (!emailVerified && adminRole !== 'ADMIN') {
+    if (!emailVerified && adminRole !== 'ADMIN' && adminRole !== 'BARANGAY_OFFICIAL') {
       router.replace('/verify-email');
       return;
     }
@@ -81,6 +83,10 @@ export default function BarangayDashboardPage() {
     setShowUrgentModal(true);
   };
 
+  const handleViewBurst = () => {
+    setShowBurstModal(true);
+  };
+
   if (!isAuthenticated || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
@@ -105,7 +111,7 @@ export default function BarangayDashboardPage() {
                   Manage reports for your barangay
                 </p>
               </div>
-              <Button variant="destructive" onClick={handleLogout} size="sm" className="hidden sm:inline-flex">
+              <Button onClick={handleLogout} size="sm" className="hidden sm:inline-flex bg-red-600 hover:bg-red-700 text-white">
                 Sign Out
               </Button>
             </div>
@@ -114,7 +120,6 @@ export default function BarangayDashboardPage() {
 
         <main className="px-3 py-4 md:px-6 md:py-6">
           <div className="max-w-7xl mx-auto space-y-6">
-            <AlertBanner onViewUrgent={handleViewUrgent} />
 
             <div className="grid grid-cols-1 gap-3 md:gap-4 md:grid-cols-3">
               <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -157,6 +162,7 @@ export default function BarangayDashboardPage() {
 
             <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-4">
+                <AlertBanner onViewBurst={handleViewBurst} />
                 <ComplaintsTable
                   complaints={complaints}
                   onViewComplaint={handleViewComplaint}
@@ -199,6 +205,22 @@ export default function BarangayDashboardPage() {
         isOpen={showUrgentModal}
         onClose={() => setShowUrgentModal(false)}
         onViewReport={setViewComplaint}
+      />
+
+      <BurstClustersModal
+        isOpen={showBurstModal}
+        onClose={() => setShowBurstModal(false)}
+        onViewReport={async (reportId) => {
+          const report = complaints.find(c => c.id === reportId);
+          if (report) {
+            setViewComplaint(report);
+          } else {
+            const fetched = await fetchComplaintById(reportId);
+            if (fetched) {
+              setViewComplaint(fetched);
+            }
+          }
+        }}
       />
     </div>
   );

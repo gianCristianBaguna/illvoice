@@ -58,6 +58,7 @@ function mapReportToComplaint(r: any): Complaint {
     flagType: r.flagType || null,
     flagReason: r.flagReason || null,
     fraudCheck: r.fraudCheck || null,
+    userEmailVerified: r.user?.emailVerified ?? false,
   };
 }
 
@@ -73,6 +74,16 @@ export async function fetchComplaints(): Promise<Complaint[]> {
     throw new Error('Unexpected response format from backend');
   }
   return data.map(mapReportToComplaint);
+}
+
+export async function fetchComplaintById(id: string): Promise<Complaint | null> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/reports/${id}`, { headers });
+  if (!res.ok) {
+    return null;
+  }
+  const data = await res.json();
+  return mapReportToComplaint(data);
 }
 
 export async function fetchActivityFeed(): Promise<ActivityItem[]> {
@@ -114,6 +125,41 @@ export interface AlertItem {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+}
+
+export interface BurstClusterItem {
+  id: string;
+  theme: string;
+  barangay: string;
+  barangayId: string | null;
+  reportCount: number;
+  reports: {
+    id: string;
+    title: string;
+    description: string;
+    severity: string;
+    status: string;
+    createdAt: string;
+    address: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    category: string | null;
+    userId: string;
+  }[];
+  latestReportAt: string;
+  isUrgent: boolean;
+}
+
+export async function fetchBurstClusters(timeWindowMinutes: number = 10, minClusterSize: number = 2): Promise<BurstClusterItem[]> {
+  const headers = await authHeaders();
+  const params = new URLSearchParams();
+  params.set('timeWindow', String(timeWindowMinutes));
+  params.set('minClusterSize', String(minClusterSize));
+  const res = await fetch(`${BACKEND_URL}/api/reports/burst-clusters?${params.toString()}`, { headers });
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
 }
 
 export async function updateComplaint(complaint: Complaint): Promise<Complaint> {

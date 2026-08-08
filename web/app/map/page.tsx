@@ -247,6 +247,31 @@ export default function MapViewPage() {
     router.replace('/login');
   };
 
+  const handleReportClick = (report: Complaint) => {
+    const map = mapRef.current;
+    const L = leafletRef.current;
+
+    if (!map || !L || typeof report.latitude !== 'number' || typeof report.longitude !== 'number') {
+      return;
+    }
+
+    map.flyTo([report.latitude, report.longitude], 16, {
+      duration: 1.5,
+    });
+
+    setTimeout(() => {
+      const markers = markersRef.current || [];
+      const target = markers.find((m) => {
+        const latlng = (m as any).getLatLng?.();
+        return latlng && latlng.lat === report.latitude && latlng.lng === report.longitude;
+      });
+
+      if (target && (target as any).openPopup) {
+        (target as any).openPopup();
+      }
+    }, 1600);
+  };
+
   if (!isAuthenticated || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white text-slate-600">
@@ -269,7 +294,7 @@ export default function MapViewPage() {
                   View reports by location and severity on the map
                 </p>
               </div>
-              <Button variant="destructive" onClick={handleLogout} size="sm">
+              <Button onClick={handleLogout} size="sm" className="bg-red-600 hover:bg-red-700 text-white">
                 Sign Out
               </Button>
             </div>
@@ -362,7 +387,8 @@ export default function MapViewPage() {
                       return (
                         <div
                           key={report.id}
-                          className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                          onClick={() => handleReportClick(report)}
+                          className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
                         >
                           <div className="flex items-start gap-3">
                             <span className={`map-pin-large ${severity.className}`} />

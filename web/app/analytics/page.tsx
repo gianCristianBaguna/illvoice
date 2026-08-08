@@ -240,9 +240,9 @@ export default function AnalyticsPage() {
                   Complaint volume, issue breakdown, and AI severity insights
                 </p>
               </div>
-              <Button variant="destructive" onClick={handleLogout} size="sm">
-                Sign Out
-              </Button>
+                <Button onClick={handleLogout} size="sm" className="bg-red-600 hover:bg-red-700 text-white">
+                  Sign Out
+                </Button>
             </div>
           </div>
         </header>

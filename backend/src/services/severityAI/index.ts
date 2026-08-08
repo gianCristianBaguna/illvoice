@@ -1,13 +1,84 @@
-import { getRuleBasedSeverity } from './keyword-store';
+import { getRuleBasedSeverity, getHazardSeverity } from './keyword-store';
 import {
     getAudioProvider,
     getTextProvider,
     getVisionProvider,
 } from "./providers";
+import type { VisionResult } from "./providers/interface";
 
 export { SEVERITY_DESCRIPTIONS } from "./keywords";
 export type { SeverityLevel } from "./keywords";
 export { getAudioProvider, getTextProvider, getVisionProvider };
+
+export interface MediaItem {
+    type: string;
+    url: string;
+}
+
+function normalizeMediaList(
+    mediaType?: string,
+    mediaUrl?: string,
+    mediaItems?: MediaItem[]
+): MediaItem[] {
+    const list: MediaItem[] = [];
+    if (mediaItems && mediaItems.length) {
+        for (const m of mediaItems) {
+            if (m && m.type && m.url) {
+                list.push({ type: m.type.toUpperCase(), url: m.url });
+            }
+        }
+    } else if (mediaType && mediaType !== "TEXT" && mediaUrl) {
+        list.push({ type: mediaType.toUpperCase(), url: mediaUrl });
+    }
+    return list;
+}
+
+function mergeVisionResults(results: VisionResult[]): VisionResult | null {
+    if (!results.length) return null;
+    const hazards = Array.from(new Set(results.flatMap((r) => r.hazards || [])));
+    const descriptions = results.map((r) => r.description).filter(Boolean);
+    const primary = results[0];
+    return {
+        description: descriptions.join(". ").slice(0, 2000),
+        hazards,
+        severity_indicator: primary.severity_indicator,
+        frameBase64: primary.frameBase64,
+        allHazards: results.map((r) => r.hazards || []),
+    };
+}
+
+async function analyzeMediaItems(items: MediaItem[]) {
+    const audioProvider = getAudioProvider();
+    const visionProvider = getVisionProvider();
+
+    let combinedTranscript = "";
+    const visionResults: VisionResult[] = [];
+
+    for (const item of items) {
+        const t = item.type.toUpperCase();
+        if (!item.url) continue;
+        try {
+            if (t === "IMAGE") {
+                console.log("📷 Analyzing image...");
+                visionResults.push(await visionProvider.analyzeImage(item.url));
+            } else if (t === "VIDEO") {
+                console.log("🎥 Analyzing video...");
+                visionResults.push(await visionProvider.analyzeVideoMultiFrame(item.url));
+            } else if (t === "AUDIO") {
+                console.log("🎙️ Transcribing audio...");
+                const tr = await audioProvider.transcribe(item.url);
+                if (tr) combinedTranscript += (combinedTranscript ? " " : "") + tr;
+            }
+        } catch (err: any) {
+            console.error(`❌ Media analysis failed for ${t}:`, err.message);
+        }
+    }
+
+    return {
+        combinedTranscript,
+        imageAnalysis: mergeVisionResults(visionResults),
+    };
+}
 
 export function extractVideoFramesEverySecond(videoUrl: string, intervalSeconds: number = 1): Promise<string[]> {
   const fs = require("fs");
@@ -112,131 +183,116 @@ export async function analyzeSeverityFromAudio(transcript: string): Promise<stri
 }
 
 export async function analyzeSeverity({
-  title,
-  description,
-  mediaType,
-  mediaUrl,
-  category,
+    title,
+    description,
+    mediaType,
+    mediaUrl,
+    mediaItems,
+    category,
 }: {
-  title: string;
-  description: string;
-  mediaType?: string;
-  mediaUrl?: string;
-  category?: string;
+    title: string;
+    description: string;
+    mediaType?: string;
+    mediaUrl?: string;
+    mediaItems?: MediaItem[];
+    category?: string;
 }): Promise<string> {
-  if (!mediaType || mediaType === "TEXT") {
-    return getRuleBasedSeverity(title, description, undefined, category);
-  }
+    const items = normalizeMediaList(mediaType, mediaUrl, mediaItems);
 
-  let transcribedAudio = "";
-  let imageAnalysis = null;
-
-  if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
-    console.warn("⚠️ No AI API key set - falling back to rule-based analysis");
-  }
-
-  const audioProvider = getAudioProvider();
-  const visionProvider = getVisionProvider();
-  const textProvider = getTextProvider();
-
-  if (mediaType === "AUDIO" && mediaUrl) {
-    try {
-      console.log("🎙️ Transcribing audio...");
-      transcribedAudio = await audioProvider.transcribe(mediaUrl);
-    } catch (err: any) {
-      console.error("❌ Audio transcription failed:", err.message);
+    if (!items.length) {
+        return getRuleBasedSeverity(title, description, undefined, category);
     }
-  }
 
-  if (mediaType === "IMAGE" && mediaUrl) {
-    try {
-      console.log("📷 Analyzing image...");
-      imageAnalysis = await visionProvider.analyzeImage(mediaUrl);
-    } catch (err: any) {
-      console.error("❌ Image analysis failed:", err.message);
+    if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
+        console.warn("⚠️ No AI API key set - falling back to rule-based analysis");
     }
-  }
 
-  if (mediaType === "VIDEO" && mediaUrl) {
+    const { combinedTranscript, imageAnalysis } = await analyzeMediaItems(items);
+    const textProvider = getTextProvider();
+
     try {
-      console.log("🎥 Analyzing video...");
-      imageAnalysis = await visionProvider.analyzeVideoMultiFrame(mediaUrl);
-    } catch (err: any) {
-      console.error("❌ Video analysis failed:", err.message);
-    }
-  }
+        const aiSeverity = await textProvider.classifySeverity(
+            title,
+            description,
+            combinedTranscript || undefined,
+            imageAnalysis ?? undefined,
+            category
+        );
 
-  try {
-    return await textProvider.classifySeverity(title, description, transcribedAudio, imageAnalysis ?? undefined, category);
-  } catch (err: any) {
-    console.error("❌ AI analysis failed, falling back to rules:", err.message);
-    return getRuleBasedSeverity(title, description, transcribedAudio, category);
-  }
+        const ruleBasedSeverity = await getRuleBasedSeverity(
+            title,
+            description,
+            combinedTranscript || undefined,
+            category
+        );
+        const hazardSeverity = imageAnalysis?.hazards?.length
+            ? await getHazardSeverity(imageAnalysis.hazards)
+            : "LOW";
+
+        const severities = [aiSeverity, ruleBasedSeverity, hazardSeverity];
+        if (severities.includes("HIGH")) return "HIGH";
+        if (severities.includes("MODERATE")) return "MODERATE";
+        return "LOW";
+    } catch (err: any) {
+        console.error("❌ AI analysis failed, falling back to rules:", err.message);
+
+        if (imageAnalysis?.hazards?.length) {
+            const hazardSeverity = await getHazardSeverity(imageAnalysis.hazards);
+            if (hazardSeverity !== "LOW") {
+                return hazardSeverity;
+            }
+        }
+
+        return getRuleBasedSeverity(title, description, combinedTranscript || undefined, category);
+    }
 }
 
 export async function generateAIInsights({
-  title,
-  description,
-  mediaType,
-  mediaUrl,
-  currentSeverity,
-  category,
+    title,
+    description,
+    mediaType,
+    mediaUrl,
+    mediaItems,
+    currentSeverity,
+    category,
 }: {
-  title: string;
-  description: string;
-  mediaType?: string;
-  mediaUrl?: string;
-  currentSeverity: string;
-  category?: string;
+    title: string;
+    description: string;
+    mediaType?: string;
+    mediaUrl?: string;
+    mediaItems?: MediaItem[];
+    currentSeverity: string;
+    category?: string;
 }): Promise<string> {
-  let transcribedAudio = "";
-  let hazardsDetected: string[] = [];
+    const items = normalizeMediaList(mediaType, mediaUrl, mediaItems);
 
-  if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
-    console.warn("⚠️ No AI API key set - AI insights disabled");
-  }
-
-  const audioProvider = getAudioProvider();
-  const visionProvider = getVisionProvider();
-  const textProvider = getTextProvider();
-
-  if (mediaType === "AUDIO" && mediaUrl) {
-    try {
-      transcribedAudio = await audioProvider.transcribe(mediaUrl);
-    } catch (err: any) {
-      console.error("❌ Audio transcription for insights failed:", err.message);
+    if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
+        console.warn("⚠️ No AI API key set - AI insights disabled");
     }
-  }
 
-  if (mediaType === "IMAGE" && mediaUrl) {
-    try {
-      const analysis = await visionProvider.analyzeImage(mediaUrl);
-      hazardsDetected = analysis.hazards;
-    } catch (err: any) {
-      console.error("❌ Image analysis for insights failed:", err.message);
+    let combinedTranscript = "";
+    const visionResults: VisionResult[] = [];
+
+    if (items.length) {
+        const result = await analyzeMediaItems(items);
+        combinedTranscript = result.combinedTranscript;
+        if (result.imageAnalysis) visionResults.push(result.imageAnalysis);
     }
-  }
 
-  if (mediaType === "VIDEO" && mediaUrl) {
+    const hazardsDetected = Array.from(new Set(visionResults.flatMap((r) => r.hazards || [])));
+    const textProvider = getTextProvider();
+
     try {
-      const analysis = await visionProvider.analyzeVideoMultiFrame(mediaUrl);
-      hazardsDetected = analysis.hazards;
+        return await textProvider.generateInsights(
+            title,
+            description,
+            currentSeverity,
+            hazardsDetected.length > 0 ? hazardsDetected : undefined,
+            combinedTranscript || undefined,
+            category
+        );
     } catch (err: any) {
-      console.error("❌ Video analysis for insights failed:", err.message);
+        console.error("❌ AI insights generation failed, using fallback:", err.message);
+        return "AI analysis not available.";
     }
-  }
-
-  try {
-    return await textProvider.generateInsights(
-      title,
-      description,
-      currentSeverity,
-      hazardsDetected.length > 0 ? hazardsDetected : undefined,
-      transcribedAudio || undefined,
-      category
-    );
-  } catch (err: any) {
-    console.error("❌ AI insights generation failed, using fallback:", err.message);
-    return "AI analysis not available.";
-  }
 }

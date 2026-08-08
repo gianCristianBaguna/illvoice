@@ -9,8 +9,9 @@ import { Sidebar } from '@/components/sidebar';
 import { Button } from '@/components/ui/button';
 import { UrgentReportsModal } from '@/components/UrgentReportsModal';
 import { ViewReportModal } from '@/components/ViewReportModal';
+import { BurstClustersModal } from '@/components/BurstClustersModal';
 import { useAuth } from '@/contexts/auth-context';
-import { fetchComplaints } from '@/lib/api';
+import { fetchComplaints, fetchComplaintById } from '@/lib/api';
 import { Complaint } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -20,7 +21,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [viewComplaint, setViewComplaint] = useState<Complaint | null>(null);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
-  const { isAuthenticated, logout, adminEmail, adminRole, emailVerified } = useAuth();
+  const [showBurstModal, setShowBurstModal] = useState(false);
+  const { isAuthenticated, logout, adminEmail, adminName, adminRole, emailVerified } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export default function DashboardPage() {
       return;
     }
 
-    if (!emailVerified && adminRole !== 'ADMIN') {
+    if (!emailVerified && adminRole !== 'ADMIN' && adminRole !== 'BARANGAY_OFFICIAL') {
       router.replace('/verify-email');
       return;
     }
@@ -61,6 +63,10 @@ export default function DashboardPage() {
     setShowUrgentModal(true);
   };
 
+  const handleViewBurst = () => {
+    setShowBurstModal(true);
+  };
+
   const handleComplaintsUpdate = (updatedComplaint: Complaint) => {
     setComplaints(prev => prev.map(c => 
       c.id === updatedComplaint.id ? updatedComplaint : c
@@ -86,16 +92,16 @@ export default function DashboardPage() {
           <div className="px-4 py-4 md:px-6 md:py-6">
             <div className="flex items-center justify-between">
               <div className="ml-10 md:ml-0">
-                <h1 className="text-xl md:text-2xl font-bold text-slate-900">ILLVoice Administrator</h1>
+                <h1 className="text-xl md:text-2xl font-bold text-slate-900">Welcome, {adminName || 'Admin'}</h1>
                 <p className="text-xs md:text-sm text-slate-500 mt-1">
                   Track and resolve complaints from your community
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button variant="destructive" onClick={handleLogout} size="sm" className="hidden sm:inline-flex">
+                <Button onClick={handleLogout} size="sm" className="hidden sm:inline-flex bg-red-600 hover:bg-red-700 text-white">
                   Sign Out
                 </Button>
-                <Button variant="destructive" onClick={handleLogout} size="sm" className="sm:hidden">
+                <Button onClick={handleLogout} size="sm" className="sm:hidden bg-red-600 hover:bg-red-700 text-white">
                   Sign Out
                 </Button>
               </div>
@@ -124,6 +130,7 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="space-y-4">
+                <AlertBanner onViewBurst={handleViewBurst} />
                 <div className="rounded-3xl border border-red-300 bg-red-50 p-6 shadow-sm">
                   <div className="flex items-center justify-between gap-3 text-red-900">
                     <div className="flex items-center gap-3">
@@ -166,6 +173,22 @@ export default function DashboardPage() {
         isOpen={showUrgentModal}
         onClose={() => setShowUrgentModal(false)}
         onViewReport={setViewComplaint}
+      />
+
+      <BurstClustersModal
+        isOpen={showBurstModal}
+        onClose={() => setShowBurstModal(false)}
+        onViewReport={async (reportId) => {
+          const report = complaints.find(c => c.id === reportId);
+          if (report) {
+            setViewComplaint(report);
+          } else {
+            const fetched = await fetchComplaintById(reportId);
+            if (fetched) {
+              setViewComplaint(fetched);
+            }
+          }
+        }}
       />
     </div>
   );

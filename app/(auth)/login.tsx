@@ -1,4 +1,4 @@
-import { useAuth } from '@/contexts/auth-context';
+import { useAuth, decodeJwtRole } from '@/contexts/auth-context';
 import { BACKEND_URL } from '@/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
@@ -34,7 +34,7 @@ export default function LoginScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { setUserEmail, setUserName, setUserPhoto, setUserPhone, setIdToken, setAuthMethod, setEmailVerified } = useAuth();
+  const { setUserEmail, setUserName, setUserPhoto, setUserPhone, setIdToken, setUserRole, setAuthMethod, setEmailVerified } = useAuth();
 
   const handleGoogleSignin = async () => {
     if (isLoading) return;
@@ -65,12 +65,14 @@ export default function LoginScreen() {
             setUserName(userName);
             userPhoto && setUserPhoto(userPhoto);
             setIdToken(result.token);
+            setUserRole(decodeJwtRole(result.token));
             setAuthMethod('GOOGLE');
             setEmailVerified(result.user?.emailVerified || false);
             await AsyncStorage.multiSet([
               ['idToken', result.token],
               ['userEmail', userEmail],
               ['userName', userName || ''],
+              ['userRole', result.user?.role || ''],
               ['userPhoto', userPhoto || ''],
               ['authMethod', 'GOOGLE'],
               ['emailVerified', String(result.user?.emailVerified || false)],
@@ -121,12 +123,14 @@ export default function LoginScreen() {
             setUserName(result.user.name);
             setUserPhone(result.user.phoneNumber || null);
             setIdToken(result.token);
+            setUserRole(decodeJwtRole(result.token));
             setAuthMethod('USERNAME_PASSWORD');
             setEmailVerified(result.user.emailVerified || false);
             await AsyncStorage.multiSet([
               ['idToken', result.token],
               ['userEmail', result.user.email],
               ['userName', result.user.name || ''],
+              ['userRole', result.user.role || ''],
               ['phoneNumber', result.user.phoneNumber || ''],
               ['authMethod', 'USERNAME_PASSWORD'],
               ['emailVerified', String(result.user.emailVerified || false)],
@@ -156,7 +160,7 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/images/LoginLogo.png')}
+            source={require('../../assets/images/ILLVOICE-LOGO.png')}
           />
         </View>
         <Text style={styles.sectionTitle}>Login to Your Account</Text>

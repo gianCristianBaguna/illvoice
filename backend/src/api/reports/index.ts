@@ -4,7 +4,7 @@ import { prisma } from '../../prisma';
 import { analyzeSeverity, generateAIInsights } from "../../services/severityAI/index";
 import { clearSeverityKeywordsCache } from "../../services/severityAI/keyword-store";
 import { broadcastToUser } from '../../sse';
-import { runFraudChecks } from "../../services/fraudDetection";
+import { scheduleBackgroundAnalysis } from "../../services/backgroundAnalysis";
 
 const router = Router();
 const FALLBACK_BARANGAY_NAME = "Unassigned Barangay";
@@ -130,33 +130,6 @@ router.post('/', authenticateToken, requireAssignedBarangay(), async (req: Authe
 
     const scopedBarangayId = getScopedBarangayId(req);
 
-    let imageAnalysis: any = undefined;
-    if (mediaType && mediaType !== "TEXT" && mediaUrl) {
-      try {
-        const { getVisionProvider } = await import("../../services/severityAI/index");
-        const visionProvider = getVisionProvider();
-        imageAnalysis = await visionProvider.analyzeImage(mediaUrl);
-      } catch (e) {
-        console.error("Vision analysis for fraud detection failed:", e);
-      }
-    }
-
-    const fraudResult = await runFraudChecks({
-      userId: existingUser.id,
-      description,
-      title,
-      mediaType,
-      mediaUrl,
-      imageAnalysis,
-      latitude: undefined,
-      longitude: undefined,
-      barangayId: scopedBarangayId || undefined,
-    });
-
-    if (fraudResult.isSuspicious) {
-      console.warn(`Suspicious admin report for user ${userEmail}:`, fraudResult.flags.map(f => f.type).join(', '));
-    }
-
     const reportData: any = {
       title,
       description,
@@ -164,15 +137,7 @@ router.post('/', authenticateToken, requireAssignedBarangay(), async (req: Authe
       address: address || undefined,
       category: category || undefined,
       user: { connect: { id: existingUser.id } },
-      isFlagged: fraudResult.isSuspicious,
-      flagType: fraudResult.flags.length > 0 ? fraudResult.flags.map(f => f.type).join(',') : undefined,
-      flagReason: fraudResult.flags.length > 0 ? fraudResult.flags.map(f => f.reason).join('; ') : undefined,
-      fraudCheck: fraudResult.flags.length > 0 ? {
-        isSuspicious: fraudResult.isSuspicious,
-        flags: fraudResult.flags,
-        riskScore: fraudResult.riskScore,
-        checksRun: fraudResult.checksRun,
-      } : undefined,
+      isFlagged: false,
     };
     if (scopedBarangayId) reportData.barangayId = scopedBarangayId;
     if (mediaType && mediaUrl) {
@@ -202,15 +167,22 @@ router.post('/', authenticateToken, requireAssignedBarangay(), async (req: Authe
       clearSeverityKeywordsCache();
     }
 
+    scheduleBackgroundAnalysis({
+      reportId: report.id,
+      userId: existingUser.id,
+      title,
+      description,
+      mediaType,
+      mediaUrl,
+      latitude: undefined,
+      longitude: undefined,
+      barangayId: scopedBarangayId || undefined,
+      category,
+    });
+
     return res.status(201).json({
       message: 'Report created',
       report,
-      fraudCheck: fraudResult.flags.length > 0 ? {
-        isSuspicious: fraudResult.isSuspicious,
-        flags: fraudResult.flags,
-        riskScore: fraudResult.riskScore,
-        checksRun: fraudResult.checksRun,
-      } : undefined,
     });
   } catch (err: any) {
     console.error('❌ REPORT CREATE ERROR:', err);
@@ -708,27 +680,32 @@ router.post('/:id/analyze', authenticateToken, requireAssignedBarangay(), async 
       });
     }
 
-    const media = report.multimedia?.[0];
+    const mediaItems = (report.multimedia || []).map((m: any) => ({ type: m.type, url: m.url }));
+    const firstMedia = report.multimedia?.[0];
+
     const aiSeverity = await analyzeSeverity({
       title: report.title,
       description: report.description,
-      mediaType: media?.type,
-      mediaUrl: media?.url,
+      mediaType: firstMedia?.type,
+      mediaUrl: firstMedia?.url,
+      mediaItems: mediaItems.length ? mediaItems : undefined,
       category: report.category || undefined,
     });
 
     const insights = await generateAIInsights({
       title: report.title,
       description: report.description,
-      mediaType: media?.type,
-      mediaUrl: media?.url,
+      mediaType: firstMedia?.type,
+      mediaUrl: firstMedia?.url,
+      mediaItems: mediaItems.length ? mediaItems : undefined,
       currentSeverity: report.severity,
       category: report.category || undefined,
     });
 
-    if (media && (media.type === "VIDEO" || media.type === "AUDIO")) {
+    // Attach the analysis to every attached multimedia item so multi-media reports are fully reviewed
+    for (const m of report.multimedia || []) {
       await prisma.multimedia.update({
-        where: { id: media.id },
+        where: { id: m.id },
         data: {
           analysis: {
             aiSeverity,
@@ -750,6 +727,20 @@ router.post('/:id/analyze', authenticateToken, requireAssignedBarangay(), async 
       error: 'Failed to analyze report with AI',
       details: err.message,
     });
+  }
+});
+
+import { detectBurstClusters } from "../../services/burstDetection";
+
+router.get('/burst-clusters', authenticateToken, requireAssignedBarangay(), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const timeWindow = parseInt(req.query.timeWindow as string) || 10;
+    const minClusterSize = parseInt(req.query.minClusterSize as string) || 2;
+    const clusters = await detectBurstClusters(timeWindow, minClusterSize);
+    res.json(clusters);
+  } catch (err: any) {
+    console.error('❌ BURST CLUSTERS ERROR:', err);
+    res.status(500).json({ error: 'Failed to detect burst clusters' });
   }
 });
 

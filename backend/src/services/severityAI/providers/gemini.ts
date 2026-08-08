@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import fetch from "node-fetch";
-import { getRuleBasedSeverity } from "../keyword-store";
+import { getRuleBasedSeverity, getHazardSeverity } from "../keyword-store";
 import { TextProvider, VisionProvider, VisionResult } from "./interface";
 
 let ai: GoogleGenAI | null = null;
@@ -371,6 +371,14 @@ Return ONLY the word: LOW | MODERATE | HIGH`;
       return "LOW";
     } catch (err: any) {
       console.error("❌ Gemini severity analysis error:", err.message);
+      
+      if (imageAnalysis?.hazards?.length) {
+        const hazardSeverity = await getHazardSeverity(imageAnalysis.hazards);
+        if (hazardSeverity !== 'LOW') {
+          return hazardSeverity;
+        }
+      }
+      
       return getRuleBasedSeverity(title, description, transcribedAudio, category);
     }
   },

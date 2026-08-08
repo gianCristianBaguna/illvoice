@@ -31,7 +31,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { userEmail, userName, userPhoto, idToken, signOut, emailVerified, setEmailVerified } = useAuth();
+  const { userEmail, userName, userPhoto, userRole, idToken, signOut, emailVerified, setEmailVerified } = useAuth();
 
   const fetchUserProfile = useCallback(async () => {
     if (!userEmail) {
@@ -183,7 +183,10 @@ export default function ProfileScreen() {
             <View style={styles.headerContent}>
               <View style={styles.headerLeft}>
                 <Text style={styles.greetingText}>My Profile</Text>
-                <Text style={styles.userNameText}>{userName || "User"}</Text>
+                <View style={styles.nameRow}>
+                  <Text style={styles.userNameText}>{userName || "User"}</Text>
+                  {userRole && <Text style={styles.roleBadge}>{userRole}</Text>}
+                </View>
               </View>
               <View style={styles.avatarContainer}>
                 {userPhoto ? (
@@ -234,7 +237,10 @@ export default function ProfileScreen() {
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
               <Text style={styles.greetingText}>My Profile</Text>
-              <Text style={styles.userNameText}>{profile?.name || "User"}</Text>
+              <View style={styles.nameRow}>
+                <Text style={styles.userNameText}>{profile?.name || "User"}</Text>
+                {userRole && <Text style={styles.roleBadge}>{userRole}</Text>}
+              </View>
             </View>
             <View style={styles.avatarContainer}>
               {userPhoto ? (
@@ -411,6 +417,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 6,
     letterSpacing: -0.5,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  roleBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   title: {
     fontSize: 28,

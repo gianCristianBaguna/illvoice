@@ -508,7 +508,7 @@ export default function SettingsPage() {
                   Manage your account preferences
                 </p>
               </div>
-              <Button variant="destructive" onClick={handleLogout} size="sm" className="gap-2">
+              <Button onClick={handleLogout} size="sm" className="gap-2 bg-red-600 hover:bg-red-700 text-white">
                 <LogOut size={16} />
                 <span className="hidden sm:inline">Sign Out</span>
               </Button>
@@ -546,7 +546,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="lg:col-span-3 space-y-6">
-                  {!emailVerified && adminRole !== 'ADMIN' && (
+                  {!emailVerified && adminRole !== 'ADMIN' && adminRole !== 'BARANGAY_OFFICIAL' && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Shield size={20} className="text-yellow-600" />

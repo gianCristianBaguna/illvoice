@@ -9,6 +9,7 @@ interface AuthContextType {
   userEmail: string | null;
   userName: string | null;
   userPhoto: string | null;
+  userRole: string | null;
   phoneNumber: string | null;
   idToken: string | null;
   authMethod: string | null;
@@ -17,6 +18,7 @@ interface AuthContextType {
   setUserEmail: (email: string) => void;
   setUserName: (name: string) => void;
   setUserPhoto: (photo: string | null) => void;
+  setUserRole: (role: string | null) => void;
   setUserPhone: (phone: string | null) => void;
   setIdToken: (token: string) => void;
   setAuthMethod: (method: string) => void;
@@ -25,12 +27,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+export function decodeJwtRole(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(payload)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const data = JSON.parse(json);
+    return data.role || null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [phoneNumber, setUserPhone] = useState<string | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
   const [authMethod, setAuthMethod] = useState<string | null>(null);
@@ -54,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUserName(storedName);
           setUserPhoto(storedPhoto);
           setUserPhone(storedPhone);
+          setUserRole(decodeJwtRole(storedToken));
           setAuthMethod(storedMethod);
 
           let isVerified = storedVerified === 'true';
@@ -100,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserEmail(null);
       setUserName(null);
       setUserPhoto(null);
+      setUserRole(null);
       setUserPhone(null);
       setAuthMethod(null);
       setEmailVerified(false);
@@ -115,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userEmail,
         userName,
         userPhoto,
+        userRole,
         phoneNumber,
         idToken,
         authMethod,
@@ -123,6 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUserEmail,
         setUserName,
         setUserPhoto,
+        setUserRole,
         setUserPhone,
         setIdToken,
         setAuthMethod,

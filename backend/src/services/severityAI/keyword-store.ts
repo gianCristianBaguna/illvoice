@@ -30,22 +30,17 @@ export async function loadSeverityKeywords(): Promise<SeverityKeywordMap> {
       orderBy: { createdAt: 'asc' },
     });
 
-    const keywordMap: SeverityKeywordMap = {
-      HIGH: [],
-      MODERATE: [],
-      LOW: [],
-    };
-
-    if (!rows || rows.length === 0) {
-      cachedSeverityKeywords = mapFromFallbackKeywords();
-      return cachedSeverityKeywords;
-    }
+    const keywordMap: SeverityKeywordMap = mapFromFallbackKeywords();
 
     for (const row of rows) {
       const severity = row.severity as SeverityLevel;
       if (keywordMap[severity]) {
         keywordMap[severity].push(row.keyword);
       }
+    }
+
+    for (const severity of Object.keys(keywordMap) as SeverityLevel[]) {
+      keywordMap[severity] = [...new Set(keywordMap[severity])];
     }
 
     cachedSeverityKeywords = keywordMap;
@@ -64,6 +59,22 @@ export async function getRuleBasedSeverity(
   category?: string
 ): Promise<SeverityLevel> {
   const text = `${title} ${description} ${audioText || ''} ${category || ''}`.toLowerCase();
+  const severityKeywords = await loadSeverityKeywords();
+
+  const highMatch = severityKeywords.HIGH.some((keyword) => text.includes(keyword.toLowerCase()));
+  if (highMatch) return 'HIGH';
+
+  const moderateMatch = severityKeywords.MODERATE.some((keyword) => text.includes(keyword.toLowerCase()));
+  if (moderateMatch) return 'MODERATE';
+
+  const lowMatch = severityKeywords.LOW.some((keyword) => text.includes(keyword.toLowerCase()));
+  if (lowMatch) return 'LOW';
+
+  return 'LOW';
+}
+
+export async function getHazardSeverity(hazards: string[]): Promise<SeverityLevel> {
+  const text = hazards.join(' ').toLowerCase();
   const severityKeywords = await loadSeverityKeywords();
 
   const highMatch = severityKeywords.HIGH.some((keyword) => text.includes(keyword.toLowerCase()));

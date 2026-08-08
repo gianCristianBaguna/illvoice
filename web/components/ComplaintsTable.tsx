@@ -90,6 +90,12 @@ export function ComplaintsTable({
     }
   };
 
+  const getVerifiedColor = (verified: boolean) => {
+    return verified
+      ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+      : 'bg-slate-100 text-slate-600 ring-slate-500/20';
+  };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -166,6 +172,7 @@ export function ComplaintsTable({
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('status')}>
                 STATUS {sortField === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">VERIFIED</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('reportedDate')}>
                 DATE/TIME {sortField === 'reportedDate' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
@@ -187,39 +194,44 @@ export function ComplaintsTable({
                       {complaint.severity}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${getStatusColor(complaint.status)}`}>
-                      {complaint.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    <div className="flex flex-col gap-0.5">
-                      <span>
-                        {new Date(complaint.reportedDate).toLocaleDateString('en-PH', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        {new Date(complaint.reportedDate).toLocaleTimeString('en-PH', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                  </td>
+                   <td className="px-6 py-4">
+                     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${getStatusColor(complaint.status)}`}>
+                       {complaint.status}
+                     </span>
+                   </td>
+                   <td className="px-6 py-4">
+                     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${getVerifiedColor(complaint.userEmailVerified ?? false)}`}>
+                       {complaint.userEmailVerified ? 'Verified' : 'Unverified'}
+                     </span>
+                   </td>
                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {complaint.address || complaint.barangay || 'Location not recorded'}
-                    </td>
+                     <div className="flex flex-col gap-0.5">
+                       <span>
+                         {new Date(complaint.reportedDate).toLocaleDateString('en-PH', {
+                           month: 'short',
+                           day: 'numeric',
+                           year: 'numeric',
+                         })}
+                       </span>
+                       <span className="text-xs text-slate-500">
+                         {new Date(complaint.reportedDate).toLocaleTimeString('en-PH', {
+                           hour: '2-digit',
+                           minute: '2-digit',
+                         })}
+                       </span>
+                     </div>
+                   </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                       {complaint.address || complaint.barangay || 'Location not recorded'}
+                     </td>
                 </tr>
               ))
             ) : (
-              <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                  No complaints found matching your filters.
-                </td>
-              </tr>
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                    No complaints found matching your filters.
+                  </td>
+                </tr>
             )}
           </tbody>
         </table>

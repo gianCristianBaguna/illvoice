@@ -11,7 +11,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      if (!emailVerified && adminRole !== 'ADMIN') {
+      if (!emailVerified && adminRole !== 'ADMIN' && adminRole !== 'BARANGAY_OFFICIAL') {
         router.replace('/verify-email');
       } else if (adminRole === 'BARANGAY_OFFICIAL') {
         router.replace('/barangay-dashboard');

@@ -34,6 +34,7 @@ export interface MapReportComplaint {
   flagType?: string | null;
   flagReason?: string | null;
   fraudCheck?: Record<string, any> | null;
+  userEmailVerified?: boolean;
 }
 
 export type Complaint = MapReportComplaint;

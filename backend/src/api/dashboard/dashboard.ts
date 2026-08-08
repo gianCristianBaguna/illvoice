@@ -1,7 +1,6 @@
 import { Request, Response, Router } from "express";
 import { prisma } from "../../prisma";
-import { analyzeSeverity, generateAIInsights, getVisionProvider, getAudioProvider } from "../../services/severityAI/index";
-import { runFraudChecks } from "../../services/fraudDetection";
+import { scheduleBackgroundAnalysis } from "../../services/backgroundAnalysis";
 
 type Severity = "LOW" | "MODERATE" | "HIGH";
 type MediaType = "TEXT" | "IMAGE" | "VIDEO" | "AUDIO";
@@ -95,7 +94,7 @@ async function hydrateMissingBarangays<T extends { id: string; latitude: number 
 // ---------------- CREATE REPORT ----------------
 router.post("/reports/by-email", async (req: Request, res: Response) => {
   try {
-    const { title, description, mediaType, mediaUrl, latitude, longitude, address, email: overrideEmail } = req.body;
+    const { title, description, mediaType, mediaUrl, mediaItems, category, latitude, longitude, address, email: overrideEmail } = req.body;
     const resolvedLatitude = toFiniteNumber(latitude);
     const resolvedLongitude = toFiniteNumber(longitude);
 
@@ -128,85 +127,23 @@ router.post("/reports/by-email", async (req: Request, res: Response) => {
     // 2️⃣ Find nearest barangay
     const nearestBarangay = await resolveBarangayForReport(resolvedLatitude, resolvedLongitude);
 
-    // 3️⃣ Analyze severity with AI
-    const aiSeverity = await analyzeSeverity({
-      title,
-      description,
-      mediaType,
-      mediaUrl,
-    });
-
-    let finalTitle = title;
-    let finalDescription = description;
-    let imageAnalysis: any = undefined;
-
-    // For media reports, get AI-generated title/description if not provided
-    if (mediaType && mediaType !== "TEXT" && mediaUrl && mediaUrl !== "N/A") {
-      try {
-        const visionProvider = getVisionProvider();
-        imageAnalysis = await visionProvider.analyzeImage(mediaUrl);
-
-        // Use AI description if available and meaningful
-        if (imageAnalysis.description && imageAnalysis.description.trim() && !finalDescription) {
-          finalDescription = imageAnalysis.description;
+    // 3️⃣ Normalize media list (freely addable multimedia; backward compatible with single mediaType/mediaUrl)
+    const mediaList: { type: string; url: string }[] = [];
+    if (Array.isArray(mediaItems) && mediaItems.length) {
+      for (const m of mediaItems) {
+        if (m && m.type && m.url) {
+          const t = String(m.type).toUpperCase();
+          if (t !== "TEXT") mediaList.push({ type: t, url: m.url });
         }
-
-        // Use AI hazards for insights
-        const insights = await generateAIInsights({
-          title: finalTitle,
-          description: imageAnalysis.description,
-          mediaType,
-          mediaUrl,
-          currentSeverity: aiSeverity,
-        });
-
-        // Extract title from insights if empty
-        if (!finalTitle || finalTitle === "") {
-          const lines = insights.split('\n').filter((l: string) => l.trim());
-          const firstLine = lines[0] || "";
-          finalTitle = firstLine.length > 60 ? firstLine.substring(0, 60) + "..." : firstLine;
-        }
-        if (!finalTitle || finalTitle === "Media Report") {
-          finalTitle = `${mediaType.charAt(0) + mediaType.slice(1).toLowerCase()} Report`;
-        }
-        if (!finalDescription || finalDescription === "AI analyzed report") {
-          const lines = insights.split('\n').filter((l: string) => l.trim());
-          finalDescription = lines.slice(0, 2).join('. ').substring(0, 250) || `Report submitted via ${mediaType.toLowerCase()}`;
-        }
-      } catch (e) {
-        console.error("Failed to get AI insights for title/description:", e);
-        finalTitle = finalTitle || `${mediaType.charAt(0) + mediaType.slice(1).toLowerCase()} Report`;
-        finalDescription = finalDescription || `Report submitted via ${mediaType.toLowerCase()} - awaiting review`;
       }
+    } else if (mediaType && mediaType !== "TEXT" && mediaUrl && mediaUrl !== "N/A") {
+      mediaList.push({ type: String(mediaType).toUpperCase(), url: mediaUrl });
     }
+    const hasMedia = mediaList.length > 0;
+    const primaryMedia = hasMedia ? mediaList[0] : null;
 
-    let transcript = "";
-    if (mediaType === "AUDIO" && mediaUrl && mediaUrl !== "N/A") {
-      try {
-        const audioProvider = getAudioProvider();
-        transcript = await audioProvider.transcribe(mediaUrl);
-      } catch (e) {
-        console.error("Audio transcription for fraud detection failed:", e);
-      }
-    }
-
-    const fraudResult = await runFraudChecks({
-      userId: user.id,
-      description: finalDescription,
-      title: finalTitle,
-      mediaType,
-      mediaUrl,
-      imageAnalysis,
-      transcript,
-      latitude: resolvedLatitude,
-      longitude: resolvedLongitude,
-      barangayId: nearestBarangay?.id,
-      barangayName: nearestBarangay?.name,
-    });
-
-    if (fraudResult.isSuspicious) {
-      console.warn(`Suspicious report from ${user.email}:`, fraudResult.flags.map((f: any) => f.type).join(', '));
-    }
+    const finalTitle = title || (primaryMedia ? `${primaryMedia.type.charAt(0) + primaryMedia.type.slice(1).toLowerCase()} Report` : "New Report");
+    const finalDescription = description || (primaryMedia && primaryMedia.type !== "TEXT" ? `Report submitted via ${primaryMedia.type.toLowerCase()} - awaiting review` : "");
 
     const data: any = {
       userId: user.id,
@@ -216,28 +153,16 @@ router.post("/reports/by-email", async (req: Request, res: Response) => {
       address: address || undefined,
       latitude: resolvedLatitude,
       longitude: resolvedLongitude,
-      severity: aiSeverity as Severity,
-      isFlagged: fraudResult.isSuspicious,
-      flagType: fraudResult.flags.length > 0 ? fraudResult.flags.map((f: any) => f.type).join(',') : undefined,
-      flagReason: fraudResult.flags.length > 0 ? fraudResult.flags.map((f: any) => f.reason).join('; ') : undefined,
-      fraudCheck: fraudResult.flags.length > 0 ? {
-        isSuspicious: fraudResult.isSuspicious,
-        flags: fraudResult.flags,
-        riskScore: fraudResult.riskScore,
-        checksRun: fraudResult.checksRun,
-      } : undefined,
+      isFlagged: false,
     };
 
-    // Add multimedia only if it exists
-    if (mediaType && mediaType !== "TEXT" && mediaUrl && mediaUrl !== "N/A") {
+    if (hasMedia) {
       data.multimedia = {
-        create: [
-          {
-            type: mediaType as MediaType,
-            url: mediaUrl,
-            analysis: null,
-          },
-        ],
+        create: mediaList.map((m) => ({
+          type: m.type as MediaType,
+          url: m.url,
+          analysis: null,
+        })),
       };
     }
 
@@ -250,15 +175,23 @@ router.post("/reports/by-email", async (req: Request, res: Response) => {
       },
     });
 
+    scheduleBackgroundAnalysis({
+      reportId: report.id,
+      userId: user.id,
+      title: finalTitle,
+      description: finalDescription,
+      mediaType: primaryMedia?.type,
+      mediaUrl: primaryMedia?.url,
+      mediaItems: hasMedia ? mediaList : undefined,
+      latitude: resolvedLatitude,
+      longitude: resolvedLongitude,
+      barangayId: nearestBarangay?.id,
+      category,
+    });
+
     res.status(201).json({
       message: 'Report created',
       report,
-      fraudCheck: fraudResult.flags.length > 0 ? {
-        isSuspicious: fraudResult.isSuspicious,
-        flags: fraudResult.flags,
-        riskScore: fraudResult.riskScore,
-        checksRun: fraudResult.checksRun,
-      } : undefined,
     });
   } catch (err) {
     console.error(err);

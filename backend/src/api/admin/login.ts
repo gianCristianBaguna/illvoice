@@ -182,22 +182,10 @@ router.post('/register-barangay-official', authenticateToken, requireEmailVerifi
         authMethod: 'USERNAME_PASSWORD',
         role: 'BARANGAY_OFFICIAL',
         barangayId: barangayId,
+        emailVerified: true,
       },
       include: { barangay: true },
     });
-
-    const code = generateVerificationCode();
-    const expiry = new Date(Date.now() + 10 * 60 * 1000);
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        verificationToken: code,
-        verificationTokenExpiry: expiry,
-      },
-    });
-
-    await sendVerificationEmail(user.email, code, user.name || undefined);
 
     const token = signAdminToken({
       id: user.id,

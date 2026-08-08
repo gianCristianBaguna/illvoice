@@ -390,14 +390,19 @@ export function ViewReportModal({
                        <span className="text-xs font-semibold uppercase text-slate-500">
                          Map View
                        </span>
-                       <Button
-                         type="button"
-                         variant="outline"
-                         className="mt-2 w-full justify-center gap-2 border-slate-300 hover:bg-slate-50"
-                         onClick={() => router.push('/map')}
+                       <a
+                         href={`https://www.openstreetmap.org/?mlat=${complaint.latitude}&mlon=${complaint.longitude}#map=15/${complaint.latitude}/${complaint.longitude}`}
+                         target="_blank"
+                         rel="noopener noreferrer"
                        >
-                         Open Map
-                       </Button>
+                         <Button
+                           type="button"
+                           variant="outline"
+                           className="mt-2 w-full justify-center gap-2 border-slate-300 hover:bg-slate-50"
+                         >
+                           Open Map
+                         </Button>
+                       </a>
                      </div>
                    )}
 
@@ -417,6 +422,21 @@ export function ViewReportModal({
                 <div>
                   <span className="text-xs font-semibold uppercase text-slate-500">Email</span>
                   <p className="mt-1 text-slate-700 text-sm break-all">{complaint.userEmail}</p>
+                </div>
+
+                <div>
+                  <span className="text-xs font-semibold uppercase text-slate-500">Account Status</span>
+                  <div className="mt-1">
+                    {complaint.userEmailVerified ? (
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                        Verified Account
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-slate-500/20">
+                        Unverified Account
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div>

@@ -9,7 +9,26 @@ import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, 
 import { uploadToSupabase } from '@/services/supabase';
 import { Ionicons } from '@expo/vector-icons';
 
-type ReportMethod = 'TEXT' | 'IMAGE' | 'VIDEO' | 'AUDIO';
+type MediaType = 'IMAGE' | 'VIDEO' | 'AUDIO';
+
+interface MediaItem {
+  id: string;
+  type: MediaType;
+  uri: string;
+  dataUrl?: string;
+}
+
+interface SubmittedReport {
+  id: string;
+  title: string;
+  description: string;
+  mediaItems: { type: string; url: string }[];
+  latitude: number;
+  longitude: number;
+  address?: string;
+  createdAt: string;
+  status: 'PENDING';
+}
 
 async function reverseGeocode(latitude: number, longitude: number): Promise<string> {
   try {
@@ -32,32 +51,28 @@ async function reverseGeocode(latitude: number, longitude: number): Promise<stri
   }
 }
 
-interface SubmittedReport {
-  id: string;
-  title: string;
-  description: string;
-  method: ReportMethod;
-  latitude: number;
-  longitude: number;
-  address?: string;
-  mediaUrl?: string;
-  createdAt: string;
-  status: 'PENDING';
+const MEDIA_OPTIONS: { key: MediaType; label: string; icon: string; color: string }[] = [
+  { key: 'IMAGE', label: 'Photo', icon: 'camera', color: '#34c759' },
+  { key: 'VIDEO', label: 'Video', icon: 'videocam', color: '#ff9500' },
+  { key: 'AUDIO', label: 'Audio', icon: 'mic', color: '#af52de' },
+];
+
+function typeLabel(type: MediaType): string {
+  return MEDIA_OPTIONS.find((m) => m.key === type)?.label || type;
 }
 
 export default function ReportScreen() {
-  const [method, setMethod] = useState<ReportMethod>('TEXT');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [address, setAddress] = useState<string>('');
-  const [media, setMedia] = useState<string | null>(null);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'stopped'>('idle');
+  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording'>('idle');
   const [submittedReport, setSubmittedReport] = useState<SubmittedReport | null>(null);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const preparedRef = useRef(false);
+  const preparedAudioRef = useRef(false);
 
   const { userEmail, idToken, userName } = useAuth();
 
@@ -92,47 +107,60 @@ export default function ReportScreen() {
       if (recordingStatus === 'recording') {
         recorder.stop().catch(() => {});
       }
-      preparedRef.current = false;
+      preparedAudioRef.current = false;
     };
   }, [recordingStatus, recorder]);
 
-  const pickMedia = async () => {
-    let result;
-    if (method === 'IMAGE') {
-      const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!cameraPermission.granted) {
-        Alert.alert('Permission required', 'Please allow camera access');
-        return;
-      }
-      result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        quality: 0.8,
-      });
-    } else if (method === 'VIDEO') {
-      const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!cameraPermission.granted) {
-        Alert.alert('Permission required', 'Please allow camera access');
-        return;
-      }
-      result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['videos'],
-        quality: 0.8,
-      });
-    } else {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Permission required', 'Please allow media access');
-        return;
-      }
-      result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images', 'videos'],
-        quality: 0.8,
-      });
-    }
+  const addMediaItems = (type: MediaType, uris: string[]) => {
+    const newItems: MediaItem[] = uris.map((uri) => ({
+      id: `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type,
+      uri,
+    }));
+    setMediaItems((prev) => [...prev, ...newItems]);
+  };
 
-    if (!result.canceled) {
-      const asset = result.assets[0];
-      setMedia(asset.uri);
+  const removeMediaItem = (id: string) => {
+    setMediaItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const pickCameraMedia = async (type: MediaType) => {
+    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!cameraPermission.granted) {
+      Alert.alert('Permission required', 'Please allow camera access');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: type === 'IMAGE' ? ['images'] : ['videos'],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      addMediaItems(type, result.assets.map((a) => a.uri));
+    }
+  };
+
+  const pickLibraryMedia = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission required', 'Please allow media access');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.8,
+      allowsMultipleSelection: true,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const typed = result.assets.map((a) => {
+        const kind: MediaType = a.type === 'video' ? 'VIDEO' : 'IMAGE';
+        return { type: kind, uri: a.uri } as const;
+      });
+      const images = typed.filter((t) => t.type === 'IMAGE').map((t) => t.uri);
+      const videos = typed.filter((t) => t.type === 'VIDEO').map((t) => t.uri);
+      if (images.length) addMediaItems('IMAGE', images);
+      if (videos.length) addMediaItems('VIDEO', videos);
     }
   };
 
@@ -146,72 +174,70 @@ export default function ReportScreen() {
 
     try {
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      if (!preparedRef.current) {
+      if (!preparedAudioRef.current) {
         await recorder.prepareToRecordAsync();
-        preparedRef.current = true;
+        preparedAudioRef.current = true;
       }
       await recorder.record();
       setRecordingStatus('recording');
     } catch (err) {
       console.error('Recording start error:', err);
       Alert.alert('Error', 'Failed to start recording');
-      preparedRef.current = false;
+      preparedAudioRef.current = false;
     }
   };
 
   const stopRecording = async () => {
     if (recordingStatus !== 'recording') return;
     try {
-      setRecordingStatus('stopped');
+      setRecordingStatus('idle');
       await recorder.stop();
       const uri = recorder.uri;
       if (uri) {
-        setMedia(uri);
+        addMediaItems('AUDIO', [uri]);
+      } else {
+        Alert.alert('Error', 'Failed to record audio');
       }
     } catch {
       Alert.alert('Error', 'Failed to stop recording');
     } finally {
-      setRecordingStatus('idle');
+      preparedAudioRef.current = false;
     }
   };
 
   const handleSubmit = async () => {
-    if (method === 'TEXT' && !title.trim()) {
-      Alert.alert('Error', 'Please fill in title for text reports');
+    if (!title.trim() && mediaItems.length === 0) {
+      Alert.alert('Error', 'Please fill in a title or add media to the report');
       return;
     }
     if (!location) {
       Alert.alert('Error', 'Location is required. Please enable GPS and try again.');
       return;
     }
-    if (method !== 'TEXT' && !media) {
-      Alert.alert('Error', `Please attach a ${method.toLowerCase()}`);
-      return;
-    }
 
     setSubmitting(true);
 
     try {
-      let mediaUrl = 'N/A';
-      if (method !== 'TEXT' && media) {
-        const uploadedUrl = await uploadToSupabase(media);
-        if (!uploadedUrl) {
-          Alert.alert('Error', 'Failed to upload media. Please try again.');
+      const uploaded: { type: string; url: string }[] = [];
+      for (const item of mediaItems) {
+        const dataUrl = await uploadToSupabase(item.uri);
+        if (dataUrl) {
+          uploaded.push({ type: item.type, url: dataUrl });
+        } else {
+          Alert.alert('Error', `Failed to attach ${typeLabel(item.type).toLowerCase()}`);
           setSubmitting(false);
           return;
         }
-        mediaUrl = uploadedUrl;
       }
 
       const payload = {
         email: userEmail,
-        title: method === 'TEXT' ? title : "",
-        description: method === 'TEXT' ? description : "",
+        title: title.trim() || '',
+        description: description.trim() || '',
         latitude: location.latitude,
         longitude: location.longitude,
         address: address || undefined,
-        mediaType: method === 'TEXT' ? undefined : method,
-        mediaUrl: method === 'TEXT' ? undefined : mediaUrl,
+        mediaItems: uploaded,
       };
 
       const response = await fetch(`${BACKEND_URL}/dashboard/reports/by-email`, {
@@ -230,16 +256,18 @@ export default function ReportScreen() {
       }
 
       const data = await response.json();
+      const report = data.report || {};
 
       setSubmittedReport({
-        id: data.id || 'N/A',
-        title: data.title || (method === 'TEXT' ? title : "AI will analyze..."),
-        description: data.description || (method === 'TEXT' ? description : "AI will generate description..."),
-        method,
+        id: report.id || 'N/A',
+        title: report.title || title.trim() || 'Report submitted',
+        description: report.description || description.trim() || 'AI will generate details from your media',
+        mediaItems: Array.isArray(report.multimedia)
+          ? report.multimedia.map((m: any) => ({ type: m.type, url: m.url }))
+          : uploaded,
         latitude: location.latitude,
         longitude: location.longitude,
         address: address || undefined,
-        mediaUrl: method !== 'TEXT' ? mediaUrl : undefined,
         createdAt: new Date().toISOString(),
         status: 'PENDING',
       });
@@ -254,18 +282,10 @@ export default function ReportScreen() {
     setSubmittedReport(null);
     setTitle('');
     setDescription('');
-    setMedia(null);
-    setMethod('TEXT');
+    setMediaItems([]);
     setRecordingStatus('idle');
     setAddress('');
   };
-
-  const methods: { key: ReportMethod; label: string; description: string; icon: string; color: string }[] = [
-    { key: 'TEXT', label: 'Text', description: 'Describe in words', icon: 'document-text-outline', color: '#007AFF' },
-    { key: 'IMAGE', label: 'Photo', description: 'Take a photo', icon: 'camera-outline', color: '#34c759' },
-    { key: 'VIDEO', label: 'Video', description: 'Record a video', icon: 'videocam-outline', color: '#ff9500' },
-    { key: 'AUDIO', label: 'Audio', description: 'Record audio', icon: 'mic-outline', color: '#af52de' },
-  ];
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -277,6 +297,28 @@ export default function ReportScreen() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const renderMediaPreview = (item: MediaItem) => {
+    if (item.type === 'IMAGE') {
+      return (
+        <Image source={{ uri: item.uri }} style={styles.mediaPreviewImage} resizeMode="cover" />
+      );
+    }
+    if (item.type === 'VIDEO') {
+      return (
+        <View style={styles.mediaPreviewIcon}>
+          <Ionicons name="videocam" size={40} color="#ff9500" />
+          <Text style={styles.mediaPreviewLabel}>Video attached</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.mediaPreviewIcon}>
+        <Ionicons name="mic" size={40} color="#af52de" />
+        <Text style={styles.mediaPreviewLabel}>Audio attached</Text>
+      </View>
+    );
   };
 
   if (submittedReport) {
@@ -329,23 +371,42 @@ export default function ReportScreen() {
               <Text style={styles.recapLabel}>Description</Text>
               <Text style={styles.recapDescription}>{submittedReport.description}</Text>
             </View>
-            <View style={styles.recapRow}>
-              <Text style={styles.recapLabel}>Method</Text>
-              <Text style={styles.recapValue}>{submittedReport.method}</Text>
-            </View>
+            {submittedReport.mediaItems.length > 0 && (
+              <View style={styles.recapRow}>
+                <Text style={styles.recapLabel}>Attachments</Text>
+                <Text style={[styles.recapValue, { color: '#007AFF' }]}>
+                  {submittedReport.mediaItems.length} item{submittedReport.mediaItems.length > 1 ? 's' : ''} included
+                </Text>
+              </View>
+            )}
             <View style={styles.recapRow}>
               <Text style={styles.recapLabel}>Location</Text>
               <Text style={[styles.recapValue, { fontFamily: 'monospace' }]}>
                 {submittedReport.address || `${submittedReport.latitude.toFixed(6)}, ${submittedReport.longitude.toFixed(6)}`}
               </Text>
             </View>
-            {submittedReport.mediaUrl && submittedReport.mediaUrl !== 'N/A' && (
-              <View style={styles.recapRow}>
-                <Text style={styles.recapLabel}>Attachment</Text>
-                <Text style={[styles.recapValue, { color: '#007AFF' }]}>Included</Text>
-              </View>
-            )}
           </View>
+
+          {submittedReport.mediaItems.length > 0 && (
+            <>
+              <View style={styles.recapDivider} />
+              <View style={styles.recapSection}>
+                <Text style={styles.recapSectionLabel}>Attached Media</Text>
+                <View style={styles.recapMediaGrid}>
+                  {submittedReport.mediaItems.map((m, index) => (
+                    <View key={`recap-${index}`} style={styles.recapMediaItem}>
+                      <Ionicons
+                        name={m.type === 'IMAGE' ? 'image' : m.type === 'VIDEO' ? 'videocam' : 'mic'}
+                        size={40}
+                        color={m.type === 'IMAGE' ? '#34c759' : m.type === 'VIDEO' ? '#ff9500' : '#af52de'}
+                      />
+                      <Text style={styles.recapMediaType}>{m.type}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
         <View style={styles.recapActions}>
@@ -384,7 +445,7 @@ export default function ReportScreen() {
           <Text style={styles.label}>Issue Title *</Text>
           <TextInput
             style={styles.input}
-            placeholder={method === 'TEXT' ? "E.g., Pothole on Main Street" : "Auto-generated from AI analysis"}
+            placeholder="E.g., Pothole on Main Street"
             value={title}
             onChangeText={setTitle}
             placeholderTextColor="#999"
@@ -393,40 +454,65 @@ export default function ReportScreen() {
           <Text style={styles.label}>Description (Optional)</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
-            placeholder="Add brief context (AI will analyze your media)"
+            placeholder={mediaItems.length > 0 ? "Add any extra context here" : "Describe the issue briefly (AI will analyze your media too)"}
             value={description}
             onChangeText={setDescription}
             multiline
             numberOfLines={4}
             placeholderTextColor="#999"
           />
-
         </View>
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="mail-outline" size={20} color="#1E3A8A" />
-            <Text style={styles.cardTitle}>Reporting Method</Text>
+            <Ionicons name="add-circle-outline" size={20} color="#1E3A8A" />
+            <Text style={styles.cardTitle}>Attach Media</Text>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.methodRow}>
-            {methods.map((m) => (
-              <TouchableOpacity
-                key={m.key}
-                style={[styles.methodChip, { borderColor: m.color }, method === m.key && { backgroundColor: m.color }]}
-                onPress={() => setMethod(m.key)}
-              >
-                <Ionicons
-                  name={m.icon as any}
-                  size={18}
-                  color={method === m.key ? '#fff' : m.color}
-                  style={styles.methodChipIcon}
-                />
-                <Text style={[styles.methodChipText, method === m.key && styles.methodChipTextActive, { color: method === m.key ? '#fff' : m.color }]}>
-                  {m.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <Text style={styles.mediaHint}>
+            Freely add photos, videos, and audio to support your report. You can add multiple items.
+          </Text>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mediaOptionRow}>
+            {MEDIA_OPTIONS.map((m) => {
+              const isRecording = m.key === 'AUDIO' && recordingStatus === 'recording';
+              const handlePressIn = m.key === 'AUDIO' ? startRecording : undefined;
+              const handlePressOut = m.key === 'AUDIO' ? stopRecording : undefined;
+              const handlePress =
+                m.key === 'IMAGE'
+                  ? () => pickCameraMedia('IMAGE')
+                  : m.key === 'VIDEO'
+                  ? () => pickCameraMedia('VIDEO')
+                  : undefined;
+              return (
+                <TouchableOpacity
+                  key={m.key}
+                  style={[styles.mediaOptionButton, { backgroundColor: isRecording ? m.color : '#f8f9fb' }, isRecording && styles.mediaOptionButtonRecording]}
+                  onPress={handlePress as any}
+                  onPressIn={handlePressIn as any}
+                  onPressOut={handlePressOut as any}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.mediaOptionIconCircle, { backgroundColor: m.color + '15' }]}>
+                    <Ionicons name={m.icon as any} size={36} color={m.color} />
+                  </View>
+                  <Text style={[styles.mediaOptionLabel, { color: m.color }, isRecording && styles.mediaOptionLabelRecording]}>
+                    {isRecording ? 'Recording...' : m.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity
+              key="library"
+              style={styles.mediaOptionButton}
+              onPress={pickLibraryMedia}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.mediaOptionIconCircle, { backgroundColor: '#007AFF' + '15' }]}>
+                <Ionicons name="images" size={36} color="#007AFF" />
+              </View>
+              <Text style={[styles.mediaOptionLabel, { color: '#007AFF' }]}>Library</Text>
+            </TouchableOpacity>
           </ScrollView>
 
           {location && (
@@ -438,61 +524,20 @@ export default function ReportScreen() {
             </View>
           )}
 
-          {method !== 'TEXT' && (
-            <>
-              <Text style={styles.label}>Attachment *</Text>
-              {media ? (
-                <View style={styles.mediaPreview}>
-                  {method === 'IMAGE' && <Image source={{ uri: media }} style={styles.mediaImage} />}
-                  {method === 'VIDEO' && (
-                    <View style={styles.videoPreview}>
-                      <Ionicons name="videocam" size={40} color="#1E3A8A" />
-                      <Text style={styles.mediaPreviewLabel}>Video attached</Text>
-                    </View>
-                  )}
-                  {method === 'AUDIO' && (
-                    <View style={styles.audioPreview}>
-                      <Ionicons name="mic" size={40} color="#af52de" />
-                      <Text style={styles.audioPreviewText}>Audio recorded</Text>
-                      <Text style={styles.audioDuration}>
-                        {recordingStatus === 'stopped' ? 'Ready to submit' : 'Recording...'}
-                      </Text>
-                    </View>
-                  )}
-                  <TouchableOpacity onPress={() => setMedia(null)} style={styles.removeMediaButton}>
-                    <Text style={styles.removeMediaText}>Remove</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <>
-                  {method === 'AUDIO' && !media && (
-                    <View style={styles.audioRecordingContainer}>
-                      <Text style={styles.audioInstructionText}>
-                        Tap and hold the record button to capture audio
-                      </Text>
-                      <TouchableOpacity
-                        style={[styles.recordButton, recordingStatus === 'recording' && styles.recordingActiveButton]}
-                        onPressIn={startRecording}
-                        onPressOut={stopRecording}
-                      >
-                        <Ionicons name="mic" size={22} color="#fff" />
-                        <Text style={styles.recordButtonText}>
-                          {recordingStatus === 'recording' ? '  Recording...' : '  Press to Record'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  {(method === 'IMAGE' || method === 'VIDEO') && (
-                    <TouchableOpacity style={styles.mediaButton} onPress={pickMedia}>
-                      <Ionicons name={method === 'IMAGE' ? 'camera' : 'videocam'} size={24} color="#007AFF" />
-                      <Text style={styles.mediaButtonText}>
-                        {method === 'IMAGE' ? 'Take Photo' : 'Record Video'}
-                      </Text>
+          {mediaItems.length > 0 && (
+            <View style={styles.mediaGallery}>
+              <Text style={styles.label}>Added Media ({mediaItems.length})</Text>
+              <View style={styles.mediaGrid}>
+                {mediaItems.map((item) => (
+                  <View key={item.id} style={styles.mediaGridItem}>
+                    {renderMediaPreview(item)}
+                    <TouchableOpacity onPress={() => removeMediaItem(item.id)} style={styles.removeMediaButton}>
+                      <Ionicons name="close-circle" size={24} color="#ff3b30" />
                     </TouchableOpacity>
-                  )}
-                </>
-              )}
-            </>
+                  </View>
+                ))}
+              </View>
+            </View>
           )}
         </View>
 
@@ -605,50 +650,44 @@ const styles = StyleSheet.create({
     height: 100,
     textAlignVertical: 'top',
   },
-  severityRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  severityChip: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  severityChipText: {
+  mediaHint: {
     fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    color: '#8e8e93',
+    marginTop: 4,
+    marginBottom: 12,
+    lineHeight: 18,
   },
-  severityChipTextActive: {
-    color: '#fff',
-  },
-  methodRow: {
+  mediaOptionRow: {
     marginBottom: 12,
     flexDirection: 'row',
   },
-  methodChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    marginRight: 10,
-    backgroundColor: '#fff',
-    flexDirection: 'row',
+  mediaOptionButton: {
+    width: 90,
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 16,
+    marginRight: 12,
+    borderWidth: 1.5,
+    borderColor: '#e5e5ea',
   },
-  methodChipIcon: {
-    marginRight: 2,
+  mediaOptionButtonRecording: {
+    borderWidth: 0,
+    backgroundColor: '#ff3b30',
   },
-  methodChipText: {
+  mediaOptionIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  mediaOptionLabel: {
     fontSize: 13,
     fontWeight: '700',
   },
-  methodChipTextActive: {
+  mediaOptionLabelRecording: {
     color: '#fff',
   },
   locationRow: {
@@ -666,95 +705,45 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'monospace',
   },
-  mediaPreview: {
-    marginVertical: 12,
+  mediaGallery: {
+    marginTop: 12,
+  },
+  mediaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  mediaGridItem: {
+    position: 'relative',
+    width: 110,
+    height: 110,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#f0f0f5',
   },
-  mediaImage: {
+  mediaPreviewImage: {
     width: '100%',
-    height: 220,
+    height: '100%',
   },
-  videoPreview: {
+  mediaPreviewIcon: {
     width: '100%',
-    height: 150,
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 6,
     backgroundColor: '#f8f9fb',
-    gap: 8,
   },
   mediaPreviewLabel: {
-    fontSize: 14,
-    color: '#1E3A8A',
+    fontSize: 12,
+    color: '#333',
     fontWeight: '600',
   },
   removeMediaButton: {
-    padding: 12,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e5ea',
-  },
-  removeMediaText: {
-    color: '#ff3b30',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  mediaButton: {
-    backgroundColor: '#f8f9fb',
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    marginVertical: 12,
-    gap: 8,
-  },
-  mediaButtonText: {
-    color: '#007AFF',
-    fontWeight: '700',
-  },
-  audioPreview: {
-    backgroundColor: '#f3e8ff',
-    padding: 24,
-    alignItems: 'center',
-    gap: 6,
-  },
-  audioPreviewText: {
-    fontSize: 16,
-    color: '#af52de',
-    fontWeight: '700',
-  },
-  audioDuration: {
-    fontSize: 13,
-    color: '#666',
-  },
-  audioRecordingContainer: {
-    alignItems: 'center',
-    marginVertical: 12,
-    gap: 12,
-  },
-  audioInstructionText: {
-    fontSize: 14,
-    color: '#8e8e93',
-    textAlign: 'center',
-  },
-  recordButton: {
-    backgroundColor: '#ff3b30',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-    alignItems: 'center',
-    flexDirection: 'row',
-  },
-  recordingActiveButton: {
-    backgroundColor: '#ff9500',
-  },
-  recordButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#fff',
+    borderRadius: 10,
   },
   submitButton: {
     backgroundColor: '#ff3b30',
@@ -903,6 +892,26 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  recapMediaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  recapMediaItem: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  recapMediaType: {
+    fontSize: 10,
+    color: '#8e8e93',
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   recapActions: {
     gap: 12,

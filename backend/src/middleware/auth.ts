@@ -56,7 +56,6 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
       console.log('[Auth] Invalid token for', req.method, req.path, err.message);
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
-    console.log('[Auth] Token valid for', req.method, req.path, 'user:', decoded.email);
     req.user = decoded;
     next(); 
   });
