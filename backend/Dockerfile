@@ -3,15 +3,12 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
-
-RUN apt-get update -y && apt-get install -y openssl
-
 COPY prisma.config.ts ./
 COPY prisma ./prisma
 ARG DATABASE_URL=dummy
 ENV DATABASE_URL=${DATABASE_URL}
-RUN npx prisma generate
+RUN apt-get update -y && apt-get install -y openssl
+RUN npm install
 
 COPY tsconfig.json ./
 COPY src ./src
@@ -24,7 +21,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --ignore-scripts
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
