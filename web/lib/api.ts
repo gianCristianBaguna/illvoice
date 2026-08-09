@@ -1,7 +1,7 @@
 import { Complaint, TeamMember } from './types';
 
 export const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://192.168.5.234:4000';
+  process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'https://illvoice-production.up.railway.app';
 
 export async function getAdminToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;

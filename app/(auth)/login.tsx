@@ -160,7 +160,7 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/images/ILLVOICE-LOGO.png')}
+            source={require('../../assets/images/LoginLogo.png')}
           />
         </View>
         <Text style={styles.sectionTitle}>Login to Your Account</Text>

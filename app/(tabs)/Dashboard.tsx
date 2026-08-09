@@ -153,6 +153,7 @@ export default function Dashboard() {
         <View style={[styles.headerView, { backgroundColor: '#1E3A8A' }]}>
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
+              <Image source={require('../../assets/images/ILLVOICE-LOGO.png')} style={styles.headerLogo} />
               <Text style={styles.greetingText}>Welcome back,</Text>
               <Text style={styles.userNameText}>{userName || "User"}</Text>
               <Text style={styles.subtitleText}>Here's what's happening with your reports</Text>
@@ -466,6 +467,11 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginBottom: 4,
     letterSpacing: 0.3,
+  },
+  headerLogo: {
+    width: 50,
+    height: 50,
+    marginBottom: 8,
   },
   userNameText: {
     fontSize: 28,

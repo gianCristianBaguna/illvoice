@@ -29,6 +29,7 @@ app.use(
         "http://localhost:8081",
         "http://192.168.5.234:4000",
         "http://localhost:4000",
+        "https://illvoice-production.up.railway.app",
       ];
 
       if (!origin || allowedOrigins.includes(origin) || /https:\/\/.*\.vercel\.app$/i.test(origin) || /https:\/\/.*\.vercel\.dev$/i.test(origin)) {
