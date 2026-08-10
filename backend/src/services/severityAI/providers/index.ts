@@ -1,5 +1,5 @@
 import { geminiVisionProvider, geminiTextProvider, geminiAudioProvider } from "./gemini";
-import { ollamaVisionProvider } from "./ollama";
+import { ollamaVisionProvider, ollamaTextProvider } from "./ollama";
 import { openaiVisionProvider, openaiTextProvider, openaiAudioProvider } from "./openai";
 import { VisionProvider, TextProvider, AudioProvider, AIProviderType } from "./interface";
 
@@ -35,6 +35,7 @@ export function getTextProvider(): TextProvider {
     case "openai":
       return openaiTextProvider;
     case "ollama":
+      return ollamaTextProvider;
     case "hybrid":
     default:
       if (process.env.GEMINI_API_KEY) return geminiTextProvider;

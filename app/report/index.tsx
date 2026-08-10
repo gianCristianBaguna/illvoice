@@ -86,7 +86,6 @@ export default function ReportScreen() {
         try {
           position = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced,
-            timeout: 5000,
           });
         } catch {
           position = await Location.getLastKnownPositionAsync({});

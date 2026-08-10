@@ -1,6 +1,7 @@
 import { prisma } from '../prisma';
 import { runFraudChecks } from './fraudDetection';
-import { analyzeSeverity, generateAIInsights, getVisionProvider, getAudioProvider } from './severityAI';
+import { analyzeSeverity, generateAIInsights, generateAITitle, getVisionProvider, getAudioProvider } from './severityAI';
+import { broadcastToUser } from '../sse';
 
 export interface BackgroundAnalysisOptions {
   reportId: string;
@@ -120,6 +121,8 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
           category: report.category || category || undefined,
         });
 
+        const normalizedSeverity = aiSeverity.toUpperCase() as 'HIGH' | 'MODERATE' | 'LOW';
+
         const insights = await generateAIInsights({
           title: report.title,
           description: report.description,
@@ -130,18 +133,44 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
           category: report.category || category || undefined,
         });
 
+        const aiTitle = await generateAITitle(
+          report.title,
+          report.description,
+          imageAnalysis?.hazards,
+          report.category || category
+        );
+
+        const aiDescription = insights.length > 20 ? insights : report.description;
+
         await prisma.report.update({
           where: { id: reportId },
-          data: { severity: aiSeverity },
+          data: {
+            severity: normalizedSeverity,
+            title: aiTitle,
+            description: aiDescription,
+          },
         });
+
+        await prisma.notification.create({
+          data: {
+            userId,
+            title: "Report Analysis Complete",
+            message: `Your report "${aiTitle}" has been analyzed. Severity: ${normalizedSeverity}`,
+            type: "AI_ANALYSIS_COMPLETE",
+            reportId,
+          },
+        });
+
+        broadcastToUser(userId, { type: "new_notification", reportId });
 
         for (const m of report.multimedia || []) {
           await prisma.multimedia.update({
             where: { id: m.id },
             data: {
               analysis: {
-                aiSeverity,
+                aiSeverity: normalizedSeverity,
                 insights,
+                aiTitle,
                 analyzedAt: new Date().toISOString(),
               },
             },

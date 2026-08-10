@@ -7,14 +7,17 @@ import { ComplaintsByHazardChart, ComplaintsByMonthChart, ResolutionRateChart } 
 import { IssueClusters } from '@/components/IssueClusters';
 import { Sidebar } from '@/components/sidebar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { UrgentReportsModal } from '@/components/UrgentReportsModal';
 import { ViewReportModal } from '@/components/ViewReportModal';
 import { BurstClustersModal } from '@/components/BurstClustersModal';
 import { useAuth } from '@/contexts/auth-context';
-import { fetchComplaints, fetchComplaintById } from '@/lib/api';
+import { fetchAnnouncements, fetchComplaints, fetchComplaintById } from '@/lib/api';
+import type { Announcement } from '@/lib/api';
 import { Complaint } from '@/lib/types';
+import { Megaphone } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export default function DashboardPage() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -22,8 +25,24 @@ export default function DashboardPage() {
   const [viewComplaint, setViewComplaint] = useState<Complaint | null>(null);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
   const [showBurstModal, setShowBurstModal] = useState(false);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const { isAuthenticated, logout, adminEmail, adminName, adminRole, emailVerified } = useAuth();
   const router = useRouter();
+
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const [complaintsData, announcementsData] = await Promise.all([
+        fetchComplaints(),
+        fetchAnnouncements(),
+      ])
+      setComplaints(complaintsData)
+      setAnnouncements(announcementsData)
+    } catch (err) {
+      console.error('Error fetching reports:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -37,18 +56,13 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData();
-  }, [isAuthenticated, emailVerified, adminRole, router]);
 
-  const fetchDashboardData = async () => {
-    try {
-      const data = await fetchComplaints();
-      setComplaints(data);
-    } catch (err) {
-      console.error('Error fetching reports:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, emailVerified, adminRole, router, fetchDashboardData]);
 
   const handleLogout = async () => {
     await logout();
@@ -119,6 +133,45 @@ export default function DashboardPage() {
               <ComplaintsByMonthChart complaints={complaints} />
               <ResolutionRateChart complaints={complaints} />
             </div>
+
+            {/* Announcements */}
+            {announcements.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div className="border-b border-slate-100 px-4 py-3 md:px-6 md:py-4">
+                  <div className="flex items-center gap-2">
+                    <Megaphone size={18} className="text-blue-600" />
+                    <h2 className="text-sm font-semibold text-black">Announcements</h2>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {announcements.slice(0, 5).map((announcement) => (
+                    <div key={announcement.id} className="px-4 py-3 md:px-6 md:py-4">
+                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-sm font-semibold text-black">{announcement.title}</h3>
+                            {announcement.priority === 'URGENT' && (
+                              <Badge className="bg-red-600 text-white hover:bg-red-700 text-xs">Urgent</Badge>
+                            )}
+                            {announcement.priority === 'HIGH' && (
+                              <Badge className="bg-orange-500 text-white hover:bg-orange-600 text-xs">High</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-600 line-clamp-2">{announcement.content}</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {new Date(announcement.createdAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Complaints Table + Urgent Feed + Activity Feed */}
             <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3">

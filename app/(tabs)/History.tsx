@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/auth-context';
+import { useReportRefresh } from '@/contexts/report-refresh-context';
 import { BACKEND_URL } from '@/config';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
@@ -31,37 +32,40 @@ interface Report {
   resolutionNotes?: string | null;
 }
 
-interface HistoryStats {
-  total: number;
-  resolved: number;
-  pending: number;
-  inProgress: number;
-  avgResolutionTime: string;
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  read: boolean;
+  createdAt: string;
+  reportId?: string;
 }
+
+type HistoryItem = {
+  kind: 'notification' | 'report';
+  id: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  read?: boolean;
+  severity?: string;
+  status?: string;
+};
 
 export default function HistoryScreen() {
   const [reports, setReports] = useState<Report[]>([]);
-  const [stats, setStats] = useState<HistoryStats>({
-    total: 0,
-    resolved: 0,
-    pending: 0,
-    inProgress: 0,
-    avgResolutionTime: 'N/A',
-  });
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'RESOLVED'>('ALL');
+  const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'NOTIFICATIONS' | 'REPORTS'>('ALL');
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const { refreshKey } = useReportRefresh();
   const { userEmail, idToken } = useAuth();
 
   const fetchReports = useCallback(async (isRefresh = false) => {
-    if (!userEmail || !idToken) {
-      if (!userEmail) {
-        Alert.alert('Error', 'Please log in first');
-      }
-      return;
-    }
+    if (!userEmail || !idToken) return;
 
     try {
       if (!isRefresh) setLoading(true);
@@ -80,31 +84,63 @@ export default function HistoryScreen() {
       const data = await response.json();
       const reportList = Array.isArray(data) ? data : [];
       setReports(reportList);
-
-      const total = reportList.length;
-      const resolved = reportList.filter((r: Report) => r.status === 'RESOLVED').length;
-      const pending = reportList.filter((r: Report) => r.status === 'PENDING').length;
-      const inProgress = reportList.filter((r: Report) => r.status === 'IN_PROGRESS').length;
-
-      setStats({
-        total,
-        resolved,
-        pending,
-        inProgress,
-        avgResolutionTime: resolved > 0 ? '2-3 days' : 'N/A',
-      });
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to fetch reports');
       console.error('Fetch error:', error);
     } finally {
-      setLoading(false);
+      if (!isRefresh) setLoading(false);
       setRefreshing(false);
+    }
+  }, [userEmail, idToken]);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!userEmail || !idToken) return;
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/notifications`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch notifications: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setNotifications(Array.isArray(data) ? data : []);
+    } catch (error: any) {
+      console.error('Fetch notifications error:', error);
     }
   }, [userEmail, idToken]);
 
   useEffect(() => {
     fetchReports();
-  }, [fetchReports]);
+    fetchNotifications();
+  }, [fetchReports, fetchNotifications, refreshKey]);
+
+  const markAsRead = async (notificationId: string) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/notifications/${notificationId}/read`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+      setNotifications(prev =>
+        prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
+      );
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchReports(true), fetchNotifications()]);
+  }, [fetchReports, fetchNotifications]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -132,75 +168,111 @@ export default function HistoryScreen() {
     }
   };
 
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'STATUS_UPDATE':
+        return { name: 'refresh-outline' as const, color: '#1E3A8A' };
+      case 'CREDIBILITY_UPDATE':
+        return { name: 'star-outline' as const, color: '#f59e0b' };
+      case 'NEW_REPORT':
+        return { name: 'document-text-outline' as const, color: '#16a34a' };
+      default:
+        return { name: 'notifications-outline' as const, color: '#6b7280' };
+    }
+  };
+
   const openReportDetail = (report: Report) => {
     setSelectedReport(report);
     setModalVisible(true);
   };
 
-  const filteredReports = reports.filter((report) => {
+  const combinedItems: HistoryItem[] = [
+    ...notifications.map(n => ({
+      kind: 'notification' as const,
+      id: n.id,
+      title: n.title,
+      message: n.message,
+      createdAt: n.createdAt,
+      read: n.read,
+    })),
+    ...reports.map(r => ({
+      kind: 'report' as const,
+      id: r.id,
+      title: r.title,
+      message: r.description,
+      createdAt: r.createdAt,
+      severity: r.severity,
+      status: r.status,
+    })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const filteredItems = combinedItems.filter((item) => {
     if (selectedFilter === 'ALL') return true;
-    return report.status === selectedFilter;
+    if (selectedFilter === 'NOTIFICATIONS') return item.kind === 'notification';
+    return item.kind === 'report';
   });
 
-  const renderReportItem = ({ item }: { item: Report }) => {
-    const statusConfig = getStatusConfig(item.status);
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  const renderItem = ({ item }: { item: HistoryItem }) => {
+    if (item.kind === 'notification') {
+      const iconConfig = getNotificationIcon(item.title.includes('Status') ? 'STATUS_UPDATE' : item.title.includes('Credibility') ? 'CREDIBILITY_UPDATE' : 'NEW_REPORT');
+      return (
+        <TouchableOpacity
+          style={[styles.historyCard, !item.read && styles.unreadCard]}
+          onPress={() => item.read === false && markAsRead(item.id)}
+          activeOpacity={0.6}
+        >
+          <View style={styles.historyLeft}>
+            {item.read === false && <View style={styles.unreadIndicator} />}
+            <View style={[styles.iconContainer, { backgroundColor: iconConfig.color + '15' }]}>
+              <Ionicons name={iconConfig.name} size={20} color={iconConfig.color} />
+            </View>
+          </View>
+          <View style={styles.historyContent}>
+            <View style={styles.historyHeader}>
+              <Text style={[styles.historyTitle, !item.read && styles.unreadTitle]} numberOfLines={1}>
+                {item.title}
+              </Text>
+              <Text style={styles.historyTime}>{formatDate(item.createdAt)}</Text>
+            </View>
+            <Text style={styles.historyMessage} numberOfLines={2}>{item.message}</Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    const statusConfig = getStatusConfig(item.status || 'PENDING');
+    const severityColor = getSeverityColor(item.severity || 'LOW');
     return (
-      <TouchableOpacity style={styles.reportCard} activeOpacity={0.7} onPress={() => openReportDetail(item)}>
-        <View style={styles.reportHeader}>
-          <View style={styles.reportCardLeft}>
-            <View style={[styles.statusDot, { backgroundColor: statusConfig.color }]} />
+      <TouchableOpacity style={styles.historyCard} activeOpacity={0.7} onPress={() => openReportDetail(item as Report)}>
+        <View style={styles.historyHeaderRow}>
+          <View style={[styles.statusDot, { backgroundColor: severityColor }]} />
+          <View style={styles.historyContent}>
+            <Text style={styles.historyTitle} numberOfLines={2}>{item.title}</Text>
+            <Text style={styles.historyTime}>{formatDate(item.createdAt)}</Text>
           </View>
-          <View style={styles.reportCardContent}>
-            <Text style={styles.reportTitle} numberOfLines={2}>{item.title}</Text>
-            <Text style={styles.reportDate}>
-              {new Date(item.createdAt).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric'
-              })} • {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.severityBadge,
-              { backgroundColor: getSeverityColor(item.severity) + '15' }
-            ]}
-          >
-            <Text style={[styles.badgeText, { color: getSeverityColor(item.severity) }]}>
-              {item.severity}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color="#c7c7cc" style={styles.reportCardArrow} />
-        </View>
-
-        <Text style={styles.reportDescription} numberOfLines={2}>{item.description}</Text>
-
-         {item.multimedia && item.multimedia.length > 0 && (
-           <View style={styles.mediaIndicator}>
-             <Ionicons name="attach" size={14} color="#8e8e93" />
-             <Text style={styles.mediaText}>{item.multimedia.length} attachment{item.multimedia.length > 1 ? 's' : ''}</Text>
-           </View>
-         )}
-
-         {(item as any).address && (
-           <View style={styles.locationIndicator}>
-             <Ionicons name="location" size={14} color="#1E3A8A" />
-             <Text style={styles.locationText} numberOfLines={1}>{(item as any).address}</Text>
-           </View>
-         )}
-
-         <View style={styles.reportFooter}>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: statusConfig.color + '15' }
-            ]}
-          >
+          <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '15' }]}>
             <Ionicons name={statusConfig.icon} size={11} color={statusConfig.color} />
             <Text style={[styles.statusText, { color: statusConfig.color }]}>
               {statusConfig.label}
             </Text>
           </View>
         </View>
+        <Text style={styles.historyMessage} numberOfLines={2}>{item.message}</Text>
       </TouchableOpacity>
     );
   };
@@ -222,7 +294,7 @@ export default function HistoryScreen() {
           <View style={[styles.headerView, { backgroundColor: '#1E3A8A' }]}>
             <View style={styles.headerContent}>
               <View style={styles.headerLeft}>
-                <Text style={styles.greetingText}>Issue History</Text>
+                <Text style={styles.greetingText}>History</Text>
               </View>
             </View>
           </View>
@@ -235,14 +307,18 @@ export default function HistoryScreen() {
     );
   }
 
+  const unreadCount = notifications.filter(n => !n.read).length;
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.headerContainer}>
         <View style={[styles.headerView, { backgroundColor: '#1E3A8A' }]}>
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
-              <Text style={styles.greetingText}>Issue History</Text>
-              <Text style={styles.headerSubtitle}>Track all your reports and their status</Text>
+              <Text style={styles.greetingText}>History</Text>
+              <Text style={styles.headerSubtitle}>
+                {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'All caught up!'}
+              </Text>
             </View>
           </View>
         </View>
@@ -254,71 +330,51 @@ export default function HistoryScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              fetchReports(true);
-            }}
+            onRefresh={onRefresh}
             colors={['#1E3A8A']}
           />
         }
       >
-        <View style={styles.statsContainer}>
-          <View style={[styles.statCard, { backgroundColor: '#fff' }]}>
-            <Text style={styles.statNumber}>{stats.total}</Text>
-            <Text style={styles.statLabel}>Total</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#f0fdf4' }]}>
-            <Text style={[styles.statNumber, { color: '#16a34a' }]}>{stats.resolved}</Text>
-            <Text style={styles.statLabel}>Resolved</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#f5f5ff' }]}>
-            <Text style={[styles.statNumber, { color: '#2563eb' }]}>{stats.inProgress}</Text>
-            <Text style={styles.statLabel}>In Progress</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#fff7ed' }]}>
-            <Text style={[styles.statNumber, { color: '#dc2626' }]}>{stats.pending}</Text>
-            <Text style={styles.statLabel}>Pending</Text>
-          </View>
-        </View>
-
         <View style={styles.filterContainer}>
-          {(['ALL', 'PENDING', 'IN_PROGRESS', 'RESOLVED'] as const).map((filter) => (
+          {([
+            { key: 'ALL' as const, label: 'All' },
+            { key: 'NOTIFICATIONS' as const, label: 'Notifications' },
+            { key: 'REPORTS' as const, label: 'Reports' },
+          ]).map((filter) => (
             <TouchableOpacity
-              key={filter}
+              key={filter.key}
               style={[
                 styles.filterButton,
-                selectedFilter === filter && styles.filterButtonActive,
+                selectedFilter === filter.key && styles.filterButtonActive,
               ]}
-              onPress={() => setSelectedFilter(filter)}
+              onPress={() => setSelectedFilter(filter.key)}
             >
               <Text
                 style={[
                   styles.filterButtonText,
-                  selectedFilter === filter && styles.filterButtonTextActive,
+                  selectedFilter === filter.key && styles.filterButtonTextActive,
                 ]}
               >
-                {filter === 'ALL' ? 'All' : filter === 'IN_PROGRESS' ? 'In Progress' : filter}
+                {filter.label}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {filteredReports.length === 0 ? (
+        {filteredItems.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={48} color="#c7c7cc" />
-            <Text style={styles.emptyText}>No {selectedFilter !== 'ALL' ? selectedFilter.toLowerCase() : ''} reports</Text>
+            <Text style={styles.emptyText}>No items</Text>
             <Text style={styles.emptySubtext}>
-              {selectedFilter === 'ALL'
-                ? 'Your reports will appear here'
-                : `Switch filters to see all reports`}
+              {selectedFilter === 'ALL' ? 'Your history will appear here' : 'Switch filters to see all items'}
             </Text>
           </View>
         ) : (
           <FlatList
             scrollEnabled={false}
-            data={filteredReports}
+            data={filteredItems}
+            renderItem={renderItem}
             keyExtractor={(item) => item.id}
-            renderItem={renderReportItem}
             contentContainerStyle={styles.listContent}
           />
         )}
@@ -469,6 +525,14 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+  },
+  loadingView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   headerContainer: {
     marginBottom: 16,
   },
@@ -496,40 +560,6 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  loadingContainer: {
-    flex: 1,
-  },
-  loadingView: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
-  },
-  statCard: {
-    width: '48%',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#f0f0f5',
-  },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1a1a2e',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#8e8e93',
     fontWeight: '500',
     marginTop: 4,
   },
@@ -562,96 +592,80 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 20,
   },
-  reportCard: {
+  historyCard: {
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#f0f0f5',
-    gap: 12,
+    gap: 10,
   },
-  reportHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
+  unreadCard: {
+    backgroundColor: '#f8faff',
+    borderColor: '#1E3A8A',
+    borderWidth: 2,
   },
-  reportCardLeft: {
-    width: 4,
+  historyLeft: {
+    position: 'relative',
+    marginBottom: 8,
+  },
+  unreadIndicator: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#1E3A8A',
+    zIndex: 1,
+  },
+  iconContainer: {
+    width: 40,
     height: 40,
-    borderRadius: 2,
-    backgroundColor: '#e5e5ea',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  statusDot: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-  },
-  reportCardContent: {
+  historyContent: {
     flex: 1,
   },
-  reportTitle: {
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  historyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  historyTitle: {
     fontSize: 15,
     fontWeight: '600',
     color: '#1a1a2e',
-    lineHeight: 20,
+    flex: 1,
+    marginRight: 8,
   },
-  reportDate: {
+  unreadTitle: {
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  historyTime: {
     fontSize: 12,
     color: '#8e8e93',
-    marginTop: 2,
+    fontWeight: '500',
   },
-  severityBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  reportDescription: {
+  historyMessage: {
     fontSize: 13,
     color: '#666',
     lineHeight: 18,
   },
-  mediaIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: '#f8f9fb',
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  mediaText: {
-    fontSize: 12,
-    color: '#8e8e93',
-    fontWeight: '500',
-  },
-  locationIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: '#f0f9ff',
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  locationText: {
-    fontSize: 12,
-    color: '#1E3A8A',
-    fontWeight: '500',
-    flex: 1,
-  },
-  reportFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  statusDot: {
+    width: 4,
+    height: 32,
+    borderRadius: 2,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -664,9 +678,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 11,
     fontWeight: '600',
-  },
-  reportCardArrow: {
-    marginLeft: 4,
   },
   emptyState: {
     flex: 1,

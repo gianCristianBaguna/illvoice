@@ -10,6 +10,21 @@ export { SEVERITY_DESCRIPTIONS } from "./keywords";
 export type { SeverityLevel } from "./keywords";
 export { getAudioProvider, getTextProvider, getVisionProvider };
 
+export async function generateAITitle(
+  title: string,
+  description: string,
+  hazardsDetected?: string[],
+  category?: string
+): Promise<string> {
+  const textProvider = getTextProvider();
+  try {
+    return await textProvider.generateAITitle(title, description, hazardsDetected, category);
+  } catch (err: any) {
+    console.error("❌ AI title generation failed, using original title:", err.message);
+    return title;
+  }
+}
+
 export interface MediaItem {
     type: string;
     url: string;

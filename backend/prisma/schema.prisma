@@ -29,6 +29,7 @@ model User {
   notifications          Notification[]
   Session                Session[]
   severityKeywords       SeverityKeyword[]
+  announcements          Announcement[]
 }
 
 model Report {
@@ -135,6 +136,29 @@ model SeverityDataset {
   analysis   Json?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+}
+
+model Announcement {
+  id              String    @id @default(cuid())
+  title           String
+  content         String
+  priority        String    @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  targetAudience  String    @default("ALL") // ALL, RESIDENT, BARANGAY_OFFICIAL, ADMIN
+  isActive        Boolean   @default(true)
+  createdById     String?
+  createdBy       User?     @relation(fields: [createdById], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model EmergencyNumber {
+  id          String    @id @default(cuid())
+  category    String    // e.g., "Police", "Fire", "Medical", "Barangay"
+  number      String
+  label       String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 enum MediaType {

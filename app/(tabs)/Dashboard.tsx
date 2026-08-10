@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/auth-context';
+import { useReportRefresh } from '@/contexts/report-refresh-context';
 import { BACKEND_URL } from '@/config';
 import { router } from 'expo-router';
 import { useEffect, useState } from "react";
@@ -15,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Report {
@@ -34,12 +36,15 @@ interface Report {
 
 export default function Dashboard() {
   const { userEmail, userName, userPhoto, idToken, emailVerified } = useAuth();
+  const { refreshKey } = useReportRefresh();
   const insets = useSafeAreaInsets();
   const [userReports, setUserReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
+  const [mapRegion, setMapRegion] = useState<{ latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number } | null>(null);
 
   const loadDashboardData = async () => {
     if (!userEmail) {
@@ -77,7 +82,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboardData();
-  }, [userEmail, idToken]);
+  }, [userEmail, idToken, refreshKey]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -114,6 +119,30 @@ export default function Dashboard() {
   const openReportDetail = (report: Report) => {
     setSelectedReport(report);
     setModalVisible(true);
+  };
+
+  const openMapModal = () => {
+    const reportsWithLocation = userReports.filter(r => r.latitude && r.longitude);
+    if (reportsWithLocation.length === 0) {
+      Alert.alert("No Locations", "You don't have any reports with location data yet.");
+      return;
+    }
+    const first = reportsWithLocation[0];
+    setMapRegion({
+      latitude: first.latitude!,
+      longitude: first.longitude!,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05,
+    });
+    setMapModalVisible(true);
+  };
+
+  const handleCommunityPress = () => {
+    router.push('/community' as any);
+  };
+
+  const handleEmergencyPress = () => {
+    router.push('/emergency' as any);
   };
 
   if (loading) {
@@ -215,25 +244,25 @@ export default function Dashboard() {
 
       {/* Quick Actions */}
       <View style={styles.quickActionsContainer}>
-        <TouchableOpacity style={styles.quickAction} onPress={() => {}}>
+        <TouchableOpacity style={styles.quickAction} onPress={openMapModal}>
           <View style={[styles.quickActionIcon, { backgroundColor: '#f0f0ff' }]}>
             <Ionicons name="map" size={22} color="#1E3A8A" />
           </View>
           <Text style={styles.quickActionText}>Map</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.quickAction} onPress={() => {}}>
+        <TouchableOpacity style={styles.quickAction} onPress={handleCommunityPress}>
           <View style={[styles.quickActionIcon, { backgroundColor: '#f0fdf4' }]}>
             <Ionicons name="people" size={22} color="#166534" />
           </View>
           <Text style={styles.quickActionText}>Community</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.quickAction} onPress={() => {}}>
+        <TouchableOpacity style={styles.quickAction} onPress={handleEmergencyPress}>
           <View style={[styles.quickActionIcon, { backgroundColor: '#fff7ed' }]}>
             <Ionicons name="call" size={22} color="#9a3412" />
           </View>
           <Text style={styles.quickActionText}>Emergency</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/history')}>
+        <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/alerts' as any)}>
           <View style={[styles.quickActionIcon, { backgroundColor: '#f5f5ff' }]}>
             <Ionicons name="time" size={22} color="#1E3A8A" />
           </View>
@@ -265,7 +294,7 @@ export default function Dashboard() {
               return (
                 <TouchableOpacity key={item.id} style={styles.reportCard} activeOpacity={0.6} onPress={() => openReportDetail(item)}>
                   <View style={styles.reportCardLeft}>
-                    <View style={[styles.statusDot, { backgroundColor: statusConfig.color }]} />
+                     <View style={[styles.reportCardLeft, { backgroundColor: statusConfig.color }]} />
                   </View>
                   <View style={styles.reportCardContent}>
                     <Text style={styles.reportTitle} numberOfLines={1}>{item.title}</Text>
@@ -426,6 +455,48 @@ export default function Dashboard() {
       </Modal>
 
       <View style={styles.bottomSpacing} />
+
+      {/* Map Modal */}
+      <Modal
+        visible={mapModalVisible}
+        animationType="slide"
+        onRequestClose={() => setMapModalVisible(false)}
+      >
+        <View style={styles.mapModalOverlay}>
+          <View style={styles.mapModalHeader}>
+            <Text style={styles.mapModalTitle}>Pinned Reports</Text>
+            <TouchableOpacity onPress={() => setMapModalVisible(false)} style={styles.mapModalCloseButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+          {mapRegion && (
+            <MapView
+              style={styles.mapView}
+              provider={PROVIDER_GOOGLE}
+              initialRegion={mapRegion}
+            >
+              {userReports.filter(r => r.latitude && r.longitude).map((report) => {
+                const statusConfig = getStatusConfig(report.status);
+                return (
+                  <Marker
+                    key={report.id}
+                    coordinate={{ latitude: report.latitude!, longitude: report.longitude! }}
+                    title={report.title}
+                    description={report.address || `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}`}
+                    onCalloutPress={() => {
+                      setMapModalVisible(false);
+                      setTimeout(() => openReportDetail(report), 300);
+                    }}
+                  />
+                );
+              })}
+            </MapView>
+          )}
+          <View style={styles.mapModalFooter}>
+            <Text style={styles.mapModalFooterText}>Tap a pin to view report details</Text>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -975,5 +1046,48 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "600",
+  },
+  mapModalOverlay: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  mapModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Math.max(insets.top, 12),
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f5',
+  },
+  mapModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1E3A8A',
+    letterSpacing: -0.3,
+  },
+  mapModalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mapView: {
+    flex: 1,
+  },
+  mapModalFooter: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f5',
+    alignItems: 'center',
+  },
+  mapModalFooterText: {
+    fontSize: 13,
+    color: '#8e8e93',
+    fontWeight: '500',
   },
 });

@@ -28,6 +28,13 @@ export interface TextProvider {
     imageAnalysis?: VisionResult,
     category?: string
   ): Promise<string>;
+
+  generateAITitle(
+    title: string,
+    description: string,
+    hazardsDetected?: string[],
+    category?: string
+  ): Promise<string>;
 }
 
 export interface AudioProvider {

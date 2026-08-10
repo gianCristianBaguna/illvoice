@@ -89,6 +89,12 @@ export default function ReportsPage() {
     }
 
     loadReports();
+
+    const interval = setInterval(() => {
+      loadReports();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [isAuthenticated, emailVerified, adminRole, loadReports, router]);
 
   const handleLogout = async () => {

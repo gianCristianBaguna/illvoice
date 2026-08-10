@@ -246,19 +246,19 @@ export const geminiVisionProvider: VisionProvider = {
 
 export const geminiTextProvider: TextProvider = {
    async generateInsights(
-    title: string,
-    description: string,
-    severity: string,
-    hazardsDetected?: string[],
-    audioTranscript?: string,
-    category?: string
-  ): Promise<string> {
-    const genai = getGenAIClient();
-    if (!genai) {
-      throw new Error("Gemini API key not configured. Set GEMINI_API_KEY in backend/.env to enable AI analysis.");
-    }
+     title: string,
+     description: string,
+     severity: string,
+     hazardsDetected?: string[],
+     audioTranscript?: string,
+     category?: string
+   ): Promise<string> {
+     const genai = getGenAIClient();
+     if (!genai) {
+       throw new Error("Gemini API key not configured. Set GEMINI_API_KEY in backend/.env to enable AI analysis.");
+     }
 
-    const prompt = `You are a public safety analysis AI. Provide a concise actionable analysis (2-3 sentences) of this report:
+     const prompt = `You are a public safety analysis AI. Provide a concise actionable analysis (2-3 sentences) of this report:
 
 Title: ${title}
 Description: ${description}
@@ -272,46 +272,46 @@ Include:
 2. Recommended response priority
 3. Immediate safety concerns`;
 
-    try {
-      const result = await genai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{ text: prompt }],
-      });
+     try {
+       const result = await genai.models.generateContent({
+         model: "gemini-2.5-flash",
+         contents: [{ text: prompt }],
+       });
 
-      return result.candidates?.[0]?.content?.parts?.[0]?.text || "Analysis unavailable.";
-    } catch (err: any) {
-      console.error("❌ Gemini insights error:", err.message);
-      return "Analysis unavailable due to API error.";
-    }
-  },
+       return result.candidates?.[0]?.content?.parts?.[0]?.text || "Analysis unavailable.";
+     } catch (err: any) {
+       console.error("❌ Gemini insights error:", err.message);
+       return "Analysis unavailable due to API error.";
+     }
+   },
 
-  async classifySeverity(
-    title: string,
-    description: string,
-    transcribedAudio?: string,
-    imageAnalysis?: VisionResult,
-    category?: string
-  ): Promise<string> {
-    const genai = getGenAIClient();
-    if (!genai) {
-      throw new Error("Gemini API key not configured. Set GEMINI_API_KEY in backend/.env to enable AI analysis.");
-    }
+   async classifySeverity(
+     title: string,
+     description: string,
+     transcribedAudio?: string,
+     imageAnalysis?: VisionResult,
+     category?: string
+   ): Promise<string> {
+     const genai = getGenAIClient();
+     if (!genai) {
+       throw new Error("Gemini API key not configured. Set GEMINI_API_KEY in backend/.env to enable AI analysis.");
+     }
 
-    let fullDescription = `Title: ${title}\nDescription: ${description}`;
-    if (category) {
-      fullDescription += `\nReport Category: ${category}`;
-    }
+     let fullDescription = `Title: ${title}\nDescription: ${description}`;
+     if (category) {
+       fullDescription += `\nReport Category: ${category}`;
+     }
 
-    if (transcribedAudio) {
-      fullDescription += `\n\nTranscribed Audio Report: ${transcribedAudio}`;
-    }
+     if (transcribedAudio) {
+       fullDescription += `\n\nTranscribed Audio Report: ${transcribedAudio}`;
+     }
 
-    if (imageAnalysis && imageAnalysis.hazards.length > 0) {
-      fullDescription += `\n\nImage Analysis - Identified Hazards: ${imageAnalysis.hazards.join(", ")}`;
-      fullDescription += `\nImage Context: ${imageAnalysis.description}`;
-    }
+     if (imageAnalysis && imageAnalysis.hazards.length > 0) {
+       fullDescription += `\n\nImage Analysis - Identified Hazards: ${imageAnalysis.hazards.join(", ")}`;
+       fullDescription += `\nImage Context: ${imageAnalysis.description}`;
+     }
 
-    const prompt = `You are a public safety AI used in a citizen reporting system.
+     const prompt = `You are a public safety AI used in a citizen reporting system.
 
 Classify the SEVERITY of this incident based on ALL provided information.
 
@@ -357,31 +357,75 @@ ${fullDescription}
 
 Return ONLY the word: LOW | MODERATE | HIGH`;
 
-    try {
-      const result = await genai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{ text: prompt }],
-      });
+     try {
+       const result = await genai.models.generateContent({
+         model: "gemini-2.5-flash",
+         contents: [{ text: prompt }],
+       });
 
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      const trimmed = text.trim().toUpperCase();
+       const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+       const trimmed = text.trim().toUpperCase();
 
-      if (trimmed.includes("HIGH")) return "HIGH";
-      if (trimmed.includes("MODERATE")) return "MODERATE";
-      return "LOW";
-    } catch (err: any) {
-      console.error("❌ Gemini severity analysis error:", err.message);
-      
-      if (imageAnalysis?.hazards?.length) {
-        const hazardSeverity = await getHazardSeverity(imageAnalysis.hazards);
-        if (hazardSeverity !== 'LOW') {
-          return hazardSeverity;
-        }
-      }
-      
-      return getRuleBasedSeverity(title, description, transcribedAudio, category);
-    }
-  },
+       if (trimmed.includes("HIGH")) return "HIGH";
+       if (trimmed.includes("MODERATE")) return "MODERATE";
+       return "LOW";
+     } catch (err: any) {
+       console.error("❌ Gemini severity analysis error:", err.message);
+       
+       if (imageAnalysis?.hazards?.length) {
+         const hazardSeverity = await getHazardSeverity(imageAnalysis.hazards);
+         if (hazardSeverity !== 'LOW') {
+           return hazardSeverity;
+         }
+       }
+       
+       return getRuleBasedSeverity(title, description, transcribedAudio, category);
+     }
+   },
+
+   async generateAITitle(
+     title: string,
+     description: string,
+     hazardsDetected?: string[],
+     category?: string
+   ): Promise<string> {
+     const genai = getGenAIClient();
+     if (!genai) {
+       return title;
+     }
+
+     const prompt = `You are a public safety AI title generator.
+
+Given the incident report below, generate a SHORT, CLEAR title of 1-3 words that captures the core issue.
+
+RULES:
+- Use 1 to 3 words maximum
+- Be specific but concise
+- Use common terminology (e.g., "Kitchen Fire", "Fallen Tree", "Water Leak", "Broken Streetlight")
+- Do not add punctuation or quotes
+- Do not repeat the original title verbatim
+- Focus on the most important hazard or incident type
+
+ORIGINAL TITLE: ${title}
+DESCRIPTION: ${description}
+${category ? `CATEGORY: ${category}` : ""}
+${hazardsDetected?.length ? `HAZARDS: ${hazardsDetected.join(", ")}` : ""}
+
+Return ONLY the generated title, nothing else.`;
+
+     try {
+       const result = await genai.models.generateContent({
+         model: "gemini-2.5-flash",
+         contents: [{ text: prompt }],
+       });
+
+       const text = result.candidates?.[0]?.content?.parts?.[0]?.text || title;
+       return text.trim().replace(/["']/g, "").slice(0, 60) || title;
+     } catch (err: any) {
+       console.error("❌ Gemini title generation error:", err.message);
+       return title;
+     }
+   },
 };
 
 export const geminiAudioProvider = {

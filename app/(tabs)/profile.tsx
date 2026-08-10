@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/auth-context';
 import { BACKEND_URL } from '@/config';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +11,8 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  useWindowDimensions
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 
@@ -28,6 +29,21 @@ interface UserProfile {
 }
 
 export default function ProfileScreen() {
+  const { width } = useWindowDimensions();
+  const isSmallScreen = width < 360;
+  const isMediumScreen = width >= 360 && width < 400;
+  const avatarSize = isSmallScreen ? 44 : isMediumScreen ? 48 : 52;
+  const avatarBadgeSize = isSmallScreen ? 18 : isMediumScreen ? 20 : 22;
+  const nameFontSize = isSmallScreen ? 22 : isMediumScreen ? 26 : 28;
+  const statValueFontSize = isSmallScreen ? 22 : isMediumScreen ? 24 : 28;
+  const credibilityFontSize = isSmallScreen ? 36 : isMediumScreen ? 42 : 48;
+  const statusFontSize = isSmallScreen ? 16 : isMediumScreen ? 18 : 20;
+  const horizontalPadding = isSmallScreen ? 16 : 20;
+  const cardPadding = isSmallScreen ? 16 : 24;
+  const statsColumns = width < 380 ? 2 : 2;
+  const sectionPadding = isSmallScreen ? 16 : 20;
+  const sectionMargin = isSmallScreen ? 12 : 16;
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -207,7 +223,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.verificationBlocked}>
-          <Ionicons name="shield-warning" size={64} color="#FF9500" />
+          <Ionicons name="warning" size={64} color="#FF9500" />
           <Text style={styles.verificationBlockedTitle}>Email Verification Required</Text>
           <Text style={styles.verificationBlockedSub}>
             Please verify your email address to access all profile features
@@ -390,7 +406,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   headerView: {
-    paddingHorizontal: 20,
+    paddingHorizontal: horizontalPadding,
     paddingTop: 28,
     paddingBottom: 32,
     borderBottomLeftRadius: 28,
@@ -405,14 +421,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   greetingText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: "rgba(255, 255, 255, 0.7)",
     fontWeight: "500",
     marginBottom: 4,
     letterSpacing: 0.3,
   },
   userNameText: {
-    fontSize: 28,
+    fontSize: nameFontSize,
     color: "#fff",
     fontWeight: "700",
     marginBottom: 6,
@@ -425,17 +441,17 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   roleBadge: {
-    fontSize: 12,
+    fontSize: isSmallScreen ? 10 : 12,
     fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.9)',
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: isSmallScreen ? 8 : 10,
+    paddingVertical: isSmallScreen ? 2 : 3,
     borderRadius: 12,
     overflow: 'hidden',
   },
   title: {
-    fontSize: 28,
+    fontSize: nameFontSize,
     fontWeight: "700",
     color: "#000",
   },
@@ -443,9 +459,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   userAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: avatarSize,
+    height: avatarSize,
+    borderRadius: avatarSize / 2,
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.25)',
   },
@@ -459,9 +475,9 @@ const styles = StyleSheet.create({
     top: -2,
     right: -2,
     backgroundColor: '#34c759',
-    borderRadius: 10,
-    width: 22,
-    height: 22,
+    borderRadius: avatarBadgeSize / 2,
+    width: avatarBadgeSize,
+    height: avatarBadgeSize,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2.5,
@@ -522,13 +538,13 @@ const styles = StyleSheet.create({
     minWidth: 160,
   },
   credibilityContainer: {
-    marginHorizontal: 20,
-    marginBottom: 16,
+    marginHorizontal: horizontalPadding,
+    marginBottom: sectionMargin,
   },
   credibilityCard: {
     backgroundColor: "#fff",
     borderRadius: 20,
-    padding: 24,
+    padding: cardPadding,
     borderWidth: 1,
     borderColor: '#f0f0f5',
     alignItems: 'center',
@@ -552,13 +568,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   credibilityPercentage: {
-    fontSize: 48,
+    fontSize: credibilityFontSize,
     fontWeight: "800",
     color: "#1a1a2e",
     marginBottom: 4,
   },
   credibilityStatus: {
-    fontSize: 20,
+    fontSize: statusFontSize,
     fontWeight: "700",
     marginBottom: 8,
   },
@@ -568,15 +584,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   statsContainer: {
-    marginHorizontal: 20,
-    marginBottom: 24,
+    marginHorizontal: horizontalPadding,
+    marginBottom: sectionMargin,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     backgroundColor: "#fff",
     borderRadius: 20,
-    padding: 16,
+    padding: cardPadding,
     borderWidth: 1,
     borderColor: '#f0f0f5',
     gap: 12,
@@ -588,7 +604,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   statValue: {
-    fontSize: 28,
+    fontSize: statValueFontSize,
     fontWeight: "700",
     color: "#1a1a2e",
   },
@@ -598,8 +614,8 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   section: {
-    marginHorizontal: 20,
-    marginBottom: 16,
+    marginHorizontal: horizontalPadding,
+    marginBottom: sectionMargin,
   },
   sectionTitle: {
     fontSize: 18,
@@ -611,8 +627,8 @@ const styles = StyleSheet.create({
   infoCard: {
     backgroundColor: "#fff",
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: sectionPadding,
+    paddingBottom: sectionPadding,
     borderWidth: 1,
     borderColor: '#f0f0f5',
   },
@@ -678,7 +694,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   signOutButton: {
-    marginHorizontal: 20,
+    marginHorizontal: horizontalPadding,
     marginTop: 8,
     paddingVertical: 14,
     borderRadius: 14,

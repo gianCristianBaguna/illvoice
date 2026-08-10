@@ -80,7 +80,16 @@
         }
       ],
       "expo-secure-store",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableHermes": true,
+            "newArchEnabled": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -91,7 +100,7 @@
       "eas": {
         "projectId": "d6f4435b-2dbd-449e-ae17-c7c87d14a711"
       },
-      "BACKEND_URL": "https://illvoice-production.up.railway.app"
+      "EXPO_PUBLIC_BACKEND_URL": "https://illvoice-production.up.railway.app"
     }
   }
 }

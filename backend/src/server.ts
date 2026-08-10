@@ -2,9 +2,13 @@ import cors from "cors";
 import "dotenv/config";
 import express from "express";
 import adminBarangayRoutes from "./api/admin/barangay";
+import adminEmergencyNumberRoutes from "./api/admin/emergency-numbers";
 import adminGoogleRoutes from "./api/admin/google-signin";
+import adminAnnouncementRoutes from "./api/admin/announcements";
 import adminKeywordRoutes from "./api/admin/keywords";
 import adminRoutes from "./api/admin/login";
+import publicAnnouncementRoutes from "./api/public-announcements";
+import publicEmergencyNumberRoutes from "./api/public-emergency-numbers";
 import googleAuthRoutes from "./api/auth/google";
 import usernamePasswordAuthRoutes from "./api/auth/username-password";
 import verifyEmailRoutes from "./api/auth/verify-email";
@@ -61,6 +65,8 @@ app.use("/api/auth/google", googleAuthRoutes);
 app.use("/api/auth", usernamePasswordAuthRoutes);
 app.use("/api/auth/verify-email", verifyEmailRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/announcements", publicAnnouncementRoutes);
+app.use("/api/emergency-numbers", publicEmergencyNumberRoutes);
 
 // Dashboard routes (handle auth internally for mobile compatibility)
 app.use("/dashboard", dashboardRoutes);
@@ -129,6 +135,8 @@ app.get("/api/notifications/stream", async (req: any, res: express.Response) => 
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminGoogleRoutes);
 app.use("/api/admin", adminKeywordRoutes);
+app.use("/api/admin", adminAnnouncementRoutes);
+app.use("/api/admin", adminEmergencyNumberRoutes);
 app.use("/api/admin/barangays", adminBarangayRoutes);
 
 // Upload proxy (uses service role - no RLS)

@@ -8,10 +8,13 @@ import { AlertBanner } from '@/components/alert-banner';
 import { ComplaintsByHazardChart, ComplaintsByMonthChart, ResolutionRateChart } from '@/components/dashboard-charts';
 import { Sidebar } from '@/components/sidebar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { BurstClustersModal } from '@/components/BurstClustersModal';
 import { useAuth } from '@/contexts/auth-context';
-import { fetchBarangayInfo, fetchComplaints, fetchComplaintById } from '@/lib/api';
+import { fetchAnnouncements, fetchBarangayInfo, fetchComplaints, fetchComplaintById } from '@/lib/api';
+import type { Announcement } from '@/lib/api';
 import { Complaint } from '@/lib/types';
+import { Megaphone } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -24,13 +27,18 @@ export default function BarangayDashboardPage() {
   const [showUrgentModal, setShowUrgentModal] = useState(false);
   const [showBurstModal, setShowBurstModal] = useState(false);
   const [barangayName, setBarangayName] = useState<string | null>(null);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const { isAuthenticated, logout, barangayId, adminRole, emailVerified } = useAuth();
   const router = useRouter();
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      const data = await fetchComplaints();
-      setComplaints(data);
+      const [complaintsData, announcementsData] = await Promise.all([
+        fetchComplaints(),
+        fetchAnnouncements(),
+      ])
+      setComplaints(complaintsData)
+      setAnnouncements(announcementsData)
 
       if (barangayId) {
         const barangay = await fetchBarangayInfo(barangayId);
@@ -142,6 +150,45 @@ export default function BarangayDashboardPage() {
                 <p className="text-xs text-slate-500 mt-1">Completed reports</p>
               </div>
             </div>
+
+            {/* Announcements */}
+            {announcements.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div className="border-b border-slate-100 px-4 py-3 md:px-6 md:py-4">
+                  <div className="flex items-center gap-2">
+                    <Megaphone size={18} className="text-blue-600" />
+                    <h2 className="text-sm font-semibold text-black">Announcements</h2>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {announcements.slice(0, 5).map((announcement) => (
+                    <div key={announcement.id} className="px-4 py-3 md:px-6 md:py-4">
+                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-sm font-semibold text-black">{announcement.title}</h3>
+                            {announcement.priority === 'URGENT' && (
+                              <Badge className="bg-red-600 text-white hover:bg-red-700 text-xs">Urgent</Badge>
+                            )}
+                            {announcement.priority === 'HIGH' && (
+                              <Badge className="bg-orange-500 text-white hover:bg-orange-600 text-xs">High</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-600 line-clamp-2">{announcement.content}</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {new Date(announcement.createdAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

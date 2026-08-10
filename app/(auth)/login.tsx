@@ -62,7 +62,7 @@ export default function LoginScreen() {
           if (backendResponse.ok) {
             console.log("Google authentication successful:", result.user);
             setUserEmail(userEmail);
-            setUserName(userName);
+            userName && setUserName(userName);
             userPhoto && setUserPhoto(userPhoto);
             setIdToken(result.token);
             setUserRole(decodeJwtRole(result.token));

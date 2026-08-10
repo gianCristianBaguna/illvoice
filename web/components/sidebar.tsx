@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from '@/contexts/auth-context'
-import { BarChart3, LayoutDashboard, MapPin, Menu, MoreVertical, Settings, X } from 'lucide-react'
+import { BarChart3, LayoutDashboard, MapPin, Megaphone, Menu, MoreVertical, Phone, Settings, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
@@ -43,6 +43,8 @@ export function Sidebar() {
 
   const systemItems = [
     { href: '/analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
+    { href: '/announcements', label: 'Announcements', icon: <Megaphone size={18} /> },
+    { href: '/emergency-numbers', label: 'Emergency Numbers', icon: <Phone size={18} /> },
     { href: '/settings', label: 'Settings', icon: <Settings size={18} /> },
   ]
 

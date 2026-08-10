@@ -1,7 +1,7 @@
 import fs from "fs";
 import fetch from "node-fetch";
 import { getRuleBasedSeverity } from "../keyword-store";
-import { VisionProvider, VisionResult } from "./interface";
+import { VisionProvider, VisionResult, TextProvider } from "./interface";
 
 async function resolveImageUrl(imageUrl: string): Promise<string> {
   if (!imageUrl) return imageUrl;
@@ -212,5 +212,37 @@ Look for: fire, flooding, structural damage, accidents, debris, dangerous condit
       severity_indicator: ruleBasedSeverity,
       allHazards,
     };
+  },
+};
+
+export const ollamaTextProvider: TextProvider = {
+  async generateInsights(
+    title: string,
+    description: string,
+    severity: string,
+    hazardsDetected?: string[],
+    audioTranscript?: string,
+    category?: string
+  ): Promise<string> {
+    return "AI insights not available with Ollama text provider.";
+  },
+
+  async classifySeverity(
+    title: string,
+    description: string,
+    transcribedAudio?: string,
+    imageAnalysis?: VisionResult,
+    category?: string
+  ): Promise<string> {
+    return await getRuleBasedSeverity(title, description, transcribedAudio, category);
+  },
+
+  async generateAITitle(
+    title: string,
+    description: string,
+    hazardsDetected?: string[],
+    category?: string
+  ): Promise<string> {
+    return title;
   },
 };

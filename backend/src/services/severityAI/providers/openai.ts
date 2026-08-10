@@ -346,6 +346,54 @@ Return ONLY the word: LOW | MODERATE | HIGH`;
       return await getDbRuleBasedSeverity(title, description, transcribedAudio, category);
     }
   },
+
+  async generateAITitle(
+    title: string,
+    description: string,
+    hazardsDetected?: string[],
+    category?: string
+  ): Promise<string> {
+    const client = getOpenAIClient();
+    if (!client) {
+      return title;
+    }
+
+    const prompt = `You are a public safety AI title generator.
+
+Given the incident report below, generate a SHORT, CLEAR title of 1-3 words that captures the core issue.
+
+RULES:
+- Use 1 to 3 words maximum
+- Be specific but concise
+- Use common terminology (e.g., "Kitchen Fire", "Fallen Tree", "Water Leak", "Broken Streetlight")
+- Do not add punctuation or quotes
+- Do not repeat the original title verbatim
+- Focus on the most important hazard or incident type
+
+ORIGINAL TITLE: ${title}
+DESCRIPTION: ${description}
+${category ? `CATEGORY: ${category}` : ""}
+${hazardsDetected?.length ? `HAZARDS: ${hazardsDetected.join(", ")}` : ""}
+
+Return ONLY the generated title, nothing else.`;
+
+    try {
+      const response = await client.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are an expert title generator for public safety incidents. Respond only with the short title." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.3,
+      });
+
+      const text = response.choices[0].message.content?.trim() || title;
+      return text.replace(/["']/g, "").slice(0, 60) || title;
+    } catch (err: any) {
+      console.error("❌ OpenAI title generation error:", err.message);
+      return title;
+    }
+  },
 };
 
 export const openaiAudioProvider: AudioProvider = {

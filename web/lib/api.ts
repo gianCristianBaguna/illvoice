@@ -419,3 +419,149 @@ export async function deleteUser(userId: string): Promise<void> {
     throw new Error(err.error || 'Failed to delete user');
   }
 }
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  priority: string;
+  targetAudience: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+export async function fetchAnnouncements(): Promise<Announcement[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/announcements`, { headers });
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
+}
+
+export async function createAnnouncement(data: {
+  title: string;
+  content: string;
+  priority?: string;
+  targetAudience?: string;
+  isActive?: boolean;
+}): Promise<Announcement> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/announcements`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to create announcement');
+  }
+  return await res.json();
+}
+
+export async function updateAnnouncement(id: string, data: {
+  title?: string;
+  content?: string;
+  priority?: string;
+  targetAudience?: string;
+  isActive?: boolean;
+}): Promise<Announcement> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/announcements/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to update announcement');
+  }
+  return await res.json();
+}
+
+export async function deleteAnnouncement(id: string): Promise<void> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/announcements/${id}`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to delete announcement');
+  }
+}
+
+export interface EmergencyNumber {
+  id: string;
+  category: string;
+  number: string;
+  label?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchEmergencyNumbers(): Promise<EmergencyNumber[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/emergency-numbers`, { headers });
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
+}
+
+export async function createEmergencyNumber(data: {
+  category: string;
+  number: string;
+  label?: string;
+  isActive?: boolean;
+}): Promise<EmergencyNumber> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/emergency-numbers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to create emergency number');
+  }
+  return await res.json();
+}
+
+export async function updateEmergencyNumber(id: string, data: {
+  category?: string;
+  number?: string;
+  label?: string;
+  isActive?: boolean;
+}): Promise<EmergencyNumber> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/emergency-numbers/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to update emergency number');
+  }
+  return await res.json();
+}
+
+export async function deleteEmergencyNumber(id: string): Promise<void> {
+  const headers = await authHeaders();
+  const res = await fetch(`${BACKEND_URL}/api/admin/emergency-numbers/${id}`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to delete emergency number');
+  }
+}
