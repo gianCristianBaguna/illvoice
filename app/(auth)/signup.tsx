@@ -102,7 +102,8 @@ export default function SignUpScreen() {
         Alert.alert('Sign Up Failed', result.error || 'Registration failed');
       }
     } catch (error) {
-      Alert.alert('Error', `Network error: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert('Error', `Network error: ${errorMessage}\n\nBackend: ${BACKEND_URL}`);
     } finally {
       setIsLoading(false);
     }

@@ -59,7 +59,8 @@ export default function VerifyEmailScreen() {
         Alert.alert('Verification Failed', result.error || 'Invalid verification code');
       }
     } catch (error) {
-      Alert.alert('Error', `Network error: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert('Error', `Network error: ${errorMessage}\n\nBackend: ${BACKEND_URL}`);
     } finally {
       setIsLoading(false);
     }
@@ -110,7 +111,8 @@ export default function VerifyEmailScreen() {
         }
       }
     } catch (error) {
-      Alert.alert('Error', `Network error: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert('Error', `Network error: ${errorMessage}\n\nBackend: ${BACKEND_URL}`);
     } finally {
       setIsResending(false);
     }
@@ -158,7 +160,8 @@ export default function VerifyEmailScreen() {
         }
       }
     } catch (error) {
-      Alert.alert('Error', `Network error: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert('Error', `Network error: ${errorMessage}\n\nBackend: ${BACKEND_URL}`);
     }
   };
 

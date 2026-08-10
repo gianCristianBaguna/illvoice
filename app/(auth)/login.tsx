@@ -87,7 +87,8 @@ export default function LoginScreen() {
             Alert.alert('Error', result.error || 'Google authentication failed');
           }
         } catch (error) {
-          Alert.alert('Error', `Network error. Make sure backend is running on ${BACKEND_URL}`);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          Alert.alert('Error', `Network error: ${errorMessage}\n\nBackend: ${BACKEND_URL}`);
         }
       }
     } catch (error) {
@@ -149,7 +150,8 @@ export default function LoginScreen() {
         Alert.alert('Login Failed', result.error || 'Invalid credentials');
       }
     } catch (error) {
-      Alert.alert('Error', `Network error: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert('Error', `Network error: ${errorMessage}\n\nBackend: ${BACKEND_URL}`);
     } finally {
       setIsLoading(false);
     }

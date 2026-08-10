@@ -26,13 +26,18 @@ app.use(
     origin: (origin, callback) => {
       const allowedOrigins = [
         "http://localhost:3000",
-        "http://localhost:8081",
-        "http://192.168.5.234:4000",
         "http://localhost:4000",
+        "http://localhost:5000",
+        "http://localhost:5173",
+        "http://localhost:8081",
+        "http://localhost:8082",
+        "http://localhost:19000",
+        "http://localhost:19001",
+        "http://localhost:19002",
         "https://illvoice-production.up.railway.app",
       ];
 
-      if (!origin || allowedOrigins.includes(origin) || /https:\/\/.*\.vercel\.app$/i.test(origin) || /https:\/\/.*\.vercel\.dev$/i.test(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+):\d+$/i.test(origin) || /https:\/\/.*\.vercel\.app$/i.test(origin) || /https:\/\/.*\.vercel\.dev$/i.test(origin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
