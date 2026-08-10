@@ -126,8 +126,13 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
           mediaType: firstMedia?.type,
           mediaUrl: firstMedia?.url,
           mediaItems: hasMedia ? mediaList : undefined,
-          currentSeverity: report.severity,
+          currentSeverity: aiSeverity,
           category: report.category || category || undefined,
+        });
+
+        await prisma.report.update({
+          where: { id: reportId },
+          data: { severity: aiSeverity },
         });
 
         for (const m of report.multimedia || []) {
