@@ -242,7 +242,7 @@ export default function EmergencyNumbersPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg bg-white text-black">
           <DialogHeader>
             <DialogTitle>{editingNumber ? 'Edit Emergency Number' : 'Add Emergency Number'}</DialogTitle>
           </DialogHeader>
@@ -255,7 +255,7 @@ export default function EmergencyNumbersPage() {
                 onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                 placeholder="e.g., Police, Fire, Medical, Barangay"
                 required
-                className="bg-white border-slate-200 text-black"
+                className="bg-white dark:bg-white border-slate-200 text-black"
               />
             </div>
             <div className="space-y-1.5">
@@ -266,7 +266,7 @@ export default function EmergencyNumbersPage() {
                 onChange={(e) => setFormData(prev => ({ ...prev, number: e.target.value }))}
                 placeholder="e.g., 911, 117, +63-2-1234"
                 required
-                className="bg-white border-slate-200 text-black"
+                className="bg-white dark:bg-white border-slate-200 text-black"
               />
             </div>
             <div className="space-y-1.5">
@@ -276,7 +276,7 @@ export default function EmergencyNumbersPage() {
                 value={formData.label}
                 onChange={(e) => setFormData(prev => ({ ...prev, label: e.target.value }))}
                 placeholder="e.g., Main Station, 24/7 Hotline"
-                className="bg-white border-slate-200 text-black"
+                className="bg-white dark:bg-white border-slate-200 text-black"
               />
             </div>
             <div className="flex items-center justify-between">
@@ -302,7 +302,7 @@ export default function EmergencyNumbersPage() {
       </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white text-black">
           <DialogHeader>
             <DialogTitle>Delete Emergency Number</DialogTitle>
           </DialogHeader>

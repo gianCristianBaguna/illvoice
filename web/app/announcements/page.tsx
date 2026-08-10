@@ -263,7 +263,7 @@ export default function AnnouncementsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg bg-white text-black">
           <DialogHeader>
             <DialogTitle>{editingAnnouncement ? 'Edit Announcement' : 'New Announcement'}</DialogTitle>
           </DialogHeader>
@@ -276,7 +276,7 @@ export default function AnnouncementsPage() {
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                 placeholder="Announcement title"
                 required
-                className="bg-white border-slate-200 text-black"
+                className="bg-white dark:bg-white border-slate-200 text-black"
               />
             </div>
             <div className="space-y-1.5">
@@ -287,17 +287,17 @@ export default function AnnouncementsPage() {
                 onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
                 placeholder="Announcement content"
                 required
-                className="bg-white border-slate-200 text-black min-h-[120px]"
+                className="bg-white dark:bg-white border-slate-200 text-black min-h-[120px]"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="priority" className="text-black">Priority</Label>
                 <Select value={formData.priority} onValueChange={(value) => setFormData(prev => ({ ...prev, priority: value }))}>
-                  <SelectTrigger id="priority" className="bg-white border-slate-200 text-black">
+                  <SelectTrigger id="priority" className="bg-white dark:bg-white border-slate-200 text-black">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white dark:bg-white text-black">
                     <SelectItem value="LOW">Low</SelectItem>
                     <SelectItem value="NORMAL">Normal</SelectItem>
                     <SelectItem value="HIGH">High</SelectItem>
@@ -308,10 +308,10 @@ export default function AnnouncementsPage() {
               <div className="space-y-1.5">
                 <Label htmlFor="audience" className="text-black">Target Audience</Label>
                 <Select value={formData.targetAudience} onValueChange={(value) => setFormData(prev => ({ ...prev, targetAudience: value }))}>
-                  <SelectTrigger id="audience" className="bg-white border-slate-200 text-black">
+                  <SelectTrigger id="audience" className="bg-white dark:bg-white border-slate-200 text-black">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white dark:bg-white text-black">
                     <SelectItem value="ALL">All</SelectItem>
                     <SelectItem value="RESIDENT">Resident</SelectItem>
                     <SelectItem value="BARANGAY_OFFICIAL">Barangay Official</SelectItem>
@@ -345,7 +345,7 @@ export default function AnnouncementsPage() {
       </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white text-black">
           <DialogHeader>
             <DialogTitle>Delete Announcement</DialogTitle>
           </DialogHeader>
