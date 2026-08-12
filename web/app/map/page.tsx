@@ -1,11 +1,9 @@
 'use client';
 
-import 'leaflet/dist/leaflet.css';
 
 import { Sidebar } from '@/components/sidebar';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/auth-context';
 import { fetchComplaints } from '@/lib/api';
 import { Complaint, SeverityLevel } from '@/lib/types';
@@ -17,24 +15,21 @@ type LeafletModule = typeof import('leaflet');
 
 const DEFAULT_CENTER: [number, number] = [10.7202, 122.5621];
 
-const severityInfo: Record<SeverityLevel, { label: string; className: string; description: string; weight: number }> = {
+const severityInfo: Record<SeverityLevel, { label: string; className: string; description: string }> = {
   HIGH: {
     label: 'High',
     className: 'high',
     description: 'Needs immediate action',
-    weight: 1.0,
   },
   MODERATE: {
     label: 'Moderate',
     className: 'moderate',
     description: 'Needs scheduled action',
-    weight: 0.6,
   },
   LOW: {
     label: 'Low',
     className: 'low',
     description: 'Routine monitoring',
-    weight: 0.3,
   },
 };
 
@@ -58,17 +53,13 @@ function escapeHtml(value: string) {
 
 export default function MapViewPage() {
   const [reports, setReports] = useState<Complaint[]>([]);
-  const [visibleReports, setVisibleReports] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showHeatmap, setShowHeatmap] = useState(true);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<LeafletMarker[]>([]);
-  const heatmapRef = useRef<any>(null);
   const leafletRef = useRef<LeafletModule | null>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
   const reportsWithLocationRef = useRef<Complaint[]>([]);
 
   const { isAuthenticated, logout } = useAuth();
@@ -88,19 +79,7 @@ export default function MapViewPage() {
     markersRef.current.forEach((marker) => map.removeLayer(marker));
     markersRef.current = [];
 
-    if (heatmapRef.current) {
-      map.removeLayer(heatmapRef.current);
-      heatmapRef.current = null;
-    }
-
-    const bounds = map.getBounds();
-    const nextVisibleReports = reportsWithLocationRef.current.filter((report) =>
-      bounds.contains(L.latLng(report.latitude as number, report.longitude as number)),
-    );
-
-    setVisibleReports(nextVisibleReports);
-
-    nextVisibleReports.forEach((report) => {
+    reportsWithLocationRef.current.forEach((report) => {
       const severity = severityInfo[report.severity];
       const icon = L.divIcon({
         className: 'map-pin-icon',
@@ -122,34 +101,7 @@ export default function MapViewPage() {
 
       markersRef.current.push(marker);
     });
-
-    if (showHeatmapRef.current && reportsWithLocationRef.current.length > 0) {
-      const heatmapData = reportsWithLocationRef.current.map((report) => [
-        report.latitude,
-        report.longitude,
-        severityInfo[report.severity].weight,
-      ]);
-
-      const heatmapLayer = (L as any).heatLayer
-        ? (L as any).heatLayer(heatmapData, {
-            radius: 25,
-            blur: 15,
-            maxZoom: 17,
-            gradient: { 0.3: '#10b981', 0.6: '#f59e0b', 1.0: '#ef4444' },
-          })
-        : null;
-
-      if (heatmapLayer) {
-        heatmapLayer.addTo(map);
-        heatmapRef.current = heatmapLayer;
-      }
-    }
   }, []);
-
-  const showHeatmapRef = useRef(showHeatmap);
-  useEffect(() => {
-    showHeatmapRef.current = showHeatmap;
-  }, [showHeatmap]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -181,67 +133,52 @@ export default function MapViewPage() {
     let cancelled = false;
 
     const initMap = async () => {
-      if (!mapContainerRef.current) return;
+      try {
+        if (!mapContainerRef.current) return;
 
-      const leaflet = await import('leaflet');
-      const L = (leaflet.default || leaflet) as LeafletModule;
+        const leaflet = await import('leaflet');
+        const L = (leaflet.default || leaflet) as LeafletModule;
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      leafletRef.current = L;
+        leafletRef.current = L;
 
-      const map = L.map(mapContainerRef.current, {
-        center: DEFAULT_CENTER,
-        zoom: 7,
-        scrollWheelZoom: true,
-      });
+        const map = L.map(mapContainerRef.current, {
+          center: DEFAULT_CENTER,
+          zoom: 7,
+          scrollWheelZoom: true,
+        });
 
-      mapRef.current = map;
+        mapRef.current = map;
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors',
-      }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors',
+        }).addTo(map);
 
-      const syncVisibleReports = () => {
-        const bounds = map.getBounds();
-        const nextVisibleReports = reportsWithLocationRef.current.filter((report) =>
-          bounds.contains(L.latLng(report.latitude as number, report.longitude as number)),
-        );
-
-        setVisibleReports(nextVisibleReports);
         refreshMarkers();
-      };
 
-      map.on('moveend', syncVisibleReports);
-      map.on('zoomend', syncVisibleReports);
-
-      refreshMarkers();
-
-      setTimeout(() => {
-        map.invalidateSize();
-      }, 100);
-
-      cleanupRef.current = () => {
-        map.off('moveend', syncVisibleReports);
-        map.off('zoomend', syncVisibleReports);
-        map.remove();
-        mapRef.current = null;
-        leafletRef.current = null;
-        markersRef.current = [];
-      };
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 100);
+      } catch (err) {
+        console.error('Map init error:', err);
+        setError('Failed to initialize map. Please refresh the page.');
+      }
     };
 
     initMap();
 
     return () => {
       cancelled = true;
-      if (cleanupRef.current) {
-        cleanupRef.current();
-        cleanupRef.current = null;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        leafletRef.current = null;
+        markersRef.current = [];
       }
     };
-  }, []);
+  }, [refreshMarkers]);
 
   const handleLogout = async () => {
     await logout();
@@ -309,35 +246,27 @@ export default function MapViewPage() {
                 <div>
                   <h2 className="text-base font-semibold text-slate-950">Reports in this map area</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Drag or zoom the map. The list updates only for pins inside the visible area.
+                    Click a report card to focus the map on that location.
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="heatmap-toggle"
-                      checked={showHeatmap}
-                      onCheckedChange={setShowHeatmap}
-                    />
-                    <Label htmlFor="heatmap-toggle" className="text-xs font-medium text-slate-600 cursor-pointer">
-                      Heatmap
-                    </Label>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(Object.keys(severityInfo) as SeverityLevel[]).map((severity) => (
-                      <div
-                        key={severity}
-                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700"
-                      >
-                        <span className={`map-pin-small ${severityInfo[severity].className}`} />
-                        {severityInfo[severity].label}
-                      </div>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(severityInfo) as SeverityLevel[]).map((severity) => (
+                    <div
+                      key={severity}
+                      className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700"
+                    >
+                      <span className={`map-pin-small ${severityInfo[severity].className}`} />
+                      {severityInfo[severity].label}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div ref={mapContainerRef} className="map-container" />
+              <div 
+                ref={mapContainerRef} 
+                className="map-container h-[500px] w-full"
+                style={{ height: '500px', width: '100%', position: 'relative', background: '#e2e8f0' }}
+              />
 
               <div className="mt-2 text-xs text-slate-500">
                 Total reports: {reports.length} | With location: {reportsWithLocation.length}
@@ -371,18 +300,18 @@ export default function MapViewPage() {
               </div>
 
               <div className="mt-5">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-950">Visible reports</h3>
+                    <h3 className="text-sm font-semibold text-slate-950">All reports</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      {visibleReports.length} report{visibleReports.length === 1 ? '' : 's'} in the current map view
+                      {reportsWithLocation.length} report{reportsWithLocation.length === 1 ? '' : 's'} with location data
                     </p>
                   </div>
                 </div>
 
-                {visibleReports.length > 0 ? (
+                {reportsWithLocation.length > 0 ? (
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {visibleReports.map((report) => {
+                    {reportsWithLocation.map((report) => {
                       const severity = severityInfo[report.severity];
 
                       return (
@@ -424,7 +353,7 @@ export default function MapViewPage() {
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
-                    No reports in this map area. Drag the map to an area with pins.
+                    No reports with location data available.
                   </div>
                 )}
               </div>
