@@ -7,7 +7,9 @@ function getMimeType(uri: string): string {
   if (lowerUri.endsWith('.gif')) return 'image/gif';
   if (lowerUri.endsWith('.mp4')) return 'video/mp4';
   if (lowerUri.endsWith('.mov')) return 'video/quicktime';
-  if (lowerUri.endsWith('.m4a') || lowerUri.endsWith('.mp3') || lowerUri.endsWith('.wav')) return 'audio/mpeg';
+  if (lowerUri.endsWith('.m4a')) return 'audio/mp4';
+  if (lowerUri.endsWith('.mp3')) return 'audio/mpeg';
+  if (lowerUri.endsWith('.wav')) return 'audio/wav';
   return 'application/octet-stream';
 }
 

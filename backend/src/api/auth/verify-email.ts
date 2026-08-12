@@ -38,18 +38,19 @@ router.post('/send-code', authenticateToken, async (req: Request, res: Response)
       },
     });
 
-    console.log('[VerifyEmail] Generated code for', dbUser.email, 'calling sendVerificationEmail');
-    const result = await sendVerificationEmail(dbUser.email, code, dbUser.name || undefined);
-    console.log('[VerifyEmail] sendVerificationEmail result:', result.sent ? 'sent' : 'failed', 'messageId:', result.sent ? 'yes' : 'no');
-
-    if (!result.sent) {
-      console.warn('[VerifyEmail] Email not sent for', dbUser.email, '- SMTP not configured or failed');
-    }
+    console.log('[VerifyEmail] Generated code for', dbUser.email, 'dispatching email');
+    sendVerificationEmail(dbUser.email, code, dbUser.name || undefined).then((result) => {
+      console.log('[VerifyEmail] sendVerificationEmail result:', result.sent ? 'sent' : 'failed', 'to', dbUser.email);
+      if (!result.sent) {
+        console.warn('[VerifyEmail] Email not sent for', dbUser.email, '- check server logs');
+      }
+    }).catch((err) => {
+      console.error('[VerifyEmail] sendVerificationEmail error:', err);
+    });
 
     return res.json({
       success: true,
-      message: result.sent ? 'Verification code sent to your email' : 'Verification code generated (email sending failed - check server logs)',
-      code: result.sent ? undefined : result.code,
+      message: 'Verification code sent to your email',
     });
   } catch (err: any) {
     console.error('Send verification code error:', err);
@@ -150,18 +151,19 @@ router.post('/resend', authenticateToken, async (req: Request, res: Response) =>
       },
     });
 
-    console.log('[VerifyEmail] Generated code for', dbUser.email, 'calling sendVerificationEmail');
-    const result = await sendVerificationEmail(dbUser.email, code, dbUser.name || undefined);
-    console.log('[VerifyEmail] sendVerificationEmail result:', result.sent ? 'sent' : 'failed', 'messageId:', result.sent ? 'yes' : 'no');
-
-    if (!result.sent) {
-      console.warn('[VerifyEmail] Email not sent for', dbUser.email, '- SMTP not configured or failed');
-    }
+    console.log('[VerifyEmail] Generated code for', dbUser.email, 'dispatching email');
+    sendVerificationEmail(dbUser.email, code, dbUser.name || undefined).then((result) => {
+      console.log('[VerifyEmail] sendVerificationEmail result:', result.sent ? 'sent' : 'failed', 'to', dbUser.email);
+      if (!result.sent) {
+        console.warn('[VerifyEmail] Email not sent for', dbUser.email, '- check server logs');
+      }
+    }).catch((err) => {
+      console.error('[VerifyEmail] sendVerificationEmail error:', err);
+    });
 
     return res.json({
       success: true,
-      message: result.sent ? 'Verification code sent to your email' : 'Verification code generated (email sending failed - check server logs)',
-      code: result.sent ? undefined : result.code,
+      message: 'Verification code sent to your email',
     });
   } catch (err: any) {
     console.error('Resend verification code error:', err);

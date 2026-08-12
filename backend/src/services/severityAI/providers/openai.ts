@@ -412,7 +412,10 @@ export const openaiAudioProvider: AudioProvider = {
       }
 
       const audioBuffer = await response.arrayBuffer();
-      const tmpAudioPath = join(tmpdir(), `audio_${Date.now()}.mp3`);
+      const urlExt = audioUrl.split('.').pop()?.toLowerCase().split('?')[0] || 'mp3';
+      const supportedExts = ['mp3', 'wav', 'm4a', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'webm', 'flac'];
+      const ext = supportedExts.includes(urlExt) ? urlExt : 'mp3';
+      const tmpAudioPath = join(tmpdir(), `audio_${Date.now()}.${ext}`);
       fs.writeFileSync(tmpAudioPath, Buffer.from(audioBuffer));
 
       const transcript = await client.audio.transcriptions.create({

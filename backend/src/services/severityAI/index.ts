@@ -154,7 +154,10 @@ export async function transcribeAudioLocal(audioUrl: string): Promise<string> {
     if (!response.ok) return "";
 
     const audioBuffer = await response.arrayBuffer();
-    const tmpAudioPath = join(tmpdir(), `audio_${Date.now()}.wav`);
+    const urlExt = audioUrl.split('.').pop()?.toLowerCase().split('?')[0] || 'wav';
+    const supportedExts = ['mp3', 'wav', 'm4a', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'webm', 'flac'];
+    const ext = supportedExts.includes(urlExt) ? urlExt : 'wav';
+    const tmpAudioPath = join(tmpdir(), `audio_${Date.now()}.${ext}`);
     fs.writeFileSync(tmpAudioPath, Buffer.from(audioBuffer));
 
     return new Promise((resolve) => {
