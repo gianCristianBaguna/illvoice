@@ -10,11 +10,15 @@ import {
 } from '@/components/ui/select';
 import { Complaint } from '@/lib/types';
 import { useMemo, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface ComplaintsTableProps {
   complaints: Complaint[];
   onViewComplaint: (complaint: Complaint) => void;
   onComplaintsUpdate: (updatedComplaint: Complaint) => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 type SortField = 'reportedDate' | 'severity' | 'status';
@@ -24,6 +28,8 @@ export function ComplaintsTable({
   complaints: complaintsProp,
   onViewComplaint,
   onComplaintsUpdate,
+  onRefresh,
+  refreshing = false,
 }: ComplaintsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string>('ALL');
@@ -110,9 +116,22 @@ export function ComplaintsTable({
       <div className="p-5 md:p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-800">Recent Reports</h3>
-          <a href="/reports" className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors">
-            View All
-          </a>
+          <div className="flex items-center gap-2">
+            {onRefresh && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onRefresh}
+                disabled={refreshing}
+                className="h-8 w-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            )}
+            <a href="/reports" className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors">
+              View All
+            </a>
+          </div>
         </div>
       </div>
       

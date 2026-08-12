@@ -16,6 +16,7 @@ import { fetchComplaints } from '@/lib/api';
 import { Complaint, ComplaintStatus } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 
 function getStatusLabel(status: ComplaintStatus) {
   switch (status) {
@@ -62,11 +63,13 @@ function getSeverityColor(severity: Complaint['severity']) {
 export default function ReportsPage() {
   const [reports, setReports] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [viewReport, setViewReport] = useState<Complaint | null>(null);
   const { isAuthenticated, logout, adminRole, emailVerified } = useAuth();
   const router = useRouter();
 
-  const loadReports = useCallback(async () => {
+  const loadReports = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
     try {
       const data = await fetchComplaints();
       setReports(data);
@@ -74,6 +77,7 @@ export default function ReportsPage() {
       console.error('Error fetching reports:', err);
     } finally {
       setLoading(false);
+      if (isManualRefresh) setRefreshing(false);
     }
   }, []);
 
@@ -172,16 +176,27 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                <div>
-                  <h2 className="text-base font-semibold text-slate-950">Recent Reports</h2>
-                  <p className="mt-1 text-sm text-slate-500">Latest complaints with quick view access</p>
-                </div>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
-                  {recentReports.length} shown
-                </span>
-              </div>
+             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                 <div>
+                   <h2 className="text-base font-semibold text-slate-950">Recent Reports</h2>
+                   <p className="mt-1 text-sm text-slate-500">Latest complaints with quick view access</p>
+                 </div>
+                 <div className="flex items-center gap-3">
+                   <Button
+                     variant="ghost"
+                     size="icon"
+                     onClick={() => loadReports(true)}
+                     disabled={refreshing}
+                     className="h-8 w-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                   >
+                     <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                   </Button>
+                   <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                     {recentReports.length} shown
+                   </span>
+                 </div>
+               </div>
 
               <div className="overflow-x-auto scrollbar-light">
                 <Table>

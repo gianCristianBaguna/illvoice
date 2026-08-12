@@ -49,15 +49,15 @@ export function getAudioProvider(): AudioProvider {
 
   switch (provider) {
     case "gemini":
+      return geminiAudioProvider;
     case "openai":
       return openaiAudioProvider;
     case "ollama":
       return { transcribe: async () => "" };
     case "hybrid":
     default:
-      if (process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY) {
-        return openaiAudioProvider;
-      }
+      if (process.env.GEMINI_API_KEY) return geminiAudioProvider;
+      if (process.env.OPENAI_API_KEY) return openaiAudioProvider;
       if (process.env.USE_LOCAL_WHISPER === "true") {
         return {
           transcribe: async (audioUrl: string): Promise<string> => {

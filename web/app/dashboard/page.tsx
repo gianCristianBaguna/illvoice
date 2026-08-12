@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from 'react';
 export default function DashboardPage() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [viewComplaint, setViewComplaint] = useState<Complaint | null>(null);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
   const [showBurstModal, setShowBurstModal] = useState(false);
@@ -29,7 +30,8 @@ export default function DashboardPage() {
   const { isAuthenticated, logout, adminEmail, adminName, adminRole, emailVerified } = useAuth();
   const router = useRouter();
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
     try {
       const [complaintsData, announcementsData] = await Promise.all([
         fetchComplaints(),
@@ -41,6 +43,7 @@ export default function DashboardPage() {
       console.error('Error fetching reports:', err)
     } finally {
       setLoading(false)
+      if (isManualRefresh) setRefreshing(false)
     }
   }, []);
 
@@ -180,6 +183,8 @@ export default function DashboardPage() {
                   complaints={complaints}
                   onComplaintsUpdate={handleComplaintsUpdate}
                   onViewComplaint={handleViewComplaint}
+                  onRefresh={() => fetchDashboardData(true)}
+                  refreshing={refreshing}
                 />
               </div>
               <div className="space-y-4">

@@ -41,13 +41,13 @@ async function reverseGeocode(latitude: number, longitude: number): Promise<stri
     });
 
     if (!res.ok) {
-      return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      return '';
     }
 
     const data: any = await res.json();
-    return data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    return data.display_name || '';
   } catch {
-    return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    return '';
   }
 }
 
@@ -380,8 +380,8 @@ export default function ReportScreen() {
             )}
             <View style={styles.recapRow}>
               <Text style={styles.recapLabel}>Location</Text>
-              <Text style={[styles.recapValue, { fontFamily: 'monospace' }]}>
-                {submittedReport.address || `${submittedReport.latitude.toFixed(6)}, ${submittedReport.longitude.toFixed(6)}`}
+              <Text style={styles.recapValue}>
+                {submittedReport.address || 'Address not provided'}
               </Text>
             </View>
           </View>
@@ -518,7 +518,7 @@ export default function ReportScreen() {
             <View style={styles.locationRow}>
               <Ionicons name="location" size={16} color="#1E3A8A" />
               <Text style={styles.locationText} numberOfLines={1}>
-                {address || `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`}
+                {address || 'Location acquired'}
               </Text>
             </View>
           )}

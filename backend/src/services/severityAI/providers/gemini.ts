@@ -430,6 +430,57 @@ Return ONLY the generated title, nothing else.`;
 
 export const geminiAudioProvider = {
   async transcribe(audioUrl: string): Promise<string> {
-    return "";
+    const genai = getGenAIClient();
+    if (!genai) {
+      console.log("Gemini not configured, cannot transcribe audio");
+      return "";
+    }
+
+    try {
+      const response = await fetch(audioUrl);
+      if (!response.ok) {
+        console.error("Failed to fetch audio:", response.status);
+        return "";
+      }
+
+      const audioBuffer = await response.arrayBuffer();
+      const urlExt = audioUrl.split('.').pop()?.toLowerCase().split('?')[0] || 'mp3';
+      const mimeMap: Record<string, string> = {
+        mp3: 'audio/mpeg',
+        wav: 'audio/wav',
+        m4a: 'audio/mp4',
+        mp4: 'audio/mp4',
+        mpeg: 'audio/mpeg',
+        mpga: 'audio/mpeg',
+        oga: 'audio/ogg',
+        ogg: 'audio/ogg',
+        webm: 'audio/webm',
+        flac: 'audio/flac',
+      };
+      const mimeType = mimeMap[urlExt] || 'audio/mpeg';
+      const base64Audio = Buffer.from(audioBuffer).toString('base64');
+
+      const result = await genai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            inlineData: {
+              mimeType,
+              data: base64Audio,
+            },
+          },
+          {
+            text: "Transcribe this audio file to text. Return ONLY the transcription, nothing else.",
+          },
+        ],
+      });
+
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      console.log("✅ Audio transcribed with Gemini:", text.substring(0, 100));
+      return text.trim();
+    } catch (err: any) {
+      console.error("❌ Gemini audio transcription error:", err.message);
+      return "";
+    }
   },
 };
