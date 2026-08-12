@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/auth-context';
 import { BACKEND_URL } from '@/config';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -48,6 +48,357 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { userEmail, userName, userPhoto, userRole, idToken, signOut, emailVerified, setEmailVerified } = useAuth();
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: "#f2f2f7",
+    },
+    loadingContainer: {
+      flex: 1,
+    },
+    loadingView: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerContainer: {
+      marginBottom: 16,
+    },
+    headerView: {
+      paddingHorizontal: horizontalPadding,
+      paddingTop: 28,
+      paddingBottom: 32,
+      borderBottomLeftRadius: 28,
+      borderBottomRightRadius: 28,
+    },
+    headerContent: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    headerLeft: {
+      flex: 1,
+    },
+    greetingText: {
+      fontSize: isSmallScreen ? 12 : 14,
+      color: "rgba(255, 255, 255, 0.7)",
+      fontWeight: "500",
+      marginBottom: 4,
+      letterSpacing: 0.3,
+    },
+    userNameText: {
+      fontSize: nameFontSize,
+      color: "#fff",
+      fontWeight: "700",
+      marginBottom: 6,
+      letterSpacing: -0.5,
+    },
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 6,
+    },
+    roleBadge: {
+      fontSize: isSmallScreen ? 10 : 12,
+      fontWeight: '600',
+      color: 'rgba(255, 255, 255, 0.9)',
+      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+      paddingHorizontal: isSmallScreen ? 8 : 10,
+      paddingVertical: isSmallScreen ? 2 : 3,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    title: {
+      fontSize: nameFontSize,
+      fontWeight: "700",
+      color: "#000",
+    },
+    avatarContainer: {
+      position: 'relative',
+    },
+    userAvatar: {
+      width: avatarSize,
+      height: avatarSize,
+      borderRadius: avatarSize / 2,
+      borderWidth: 2.5,
+      borderColor: 'rgba(255, 255, 255, 0.25)',
+    },
+    avatarPlaceholder: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    verifiedBadge: {
+      position: 'absolute',
+      top: -2,
+      right: -2,
+      backgroundColor: '#34c759',
+      borderRadius: avatarBadgeSize / 2,
+      width: avatarBadgeSize,
+      height: avatarBadgeSize,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2.5,
+      borderColor: '#1E3A8A',
+    },
+    verificationBlocked: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+      paddingVertical: 60,
+    },
+    verificationBlockedTitle: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: '#1a1a2e',
+      marginTop: 16,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    verificationBlockedSub: {
+      fontSize: 14,
+      color: '#8e8e93',
+      textAlign: 'center',
+      lineHeight: 20,
+      marginBottom: 24,
+    },
+    verificationBannerText: {
+      flex: 1,
+    },
+    verificationBannerTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#FF6D00',
+    },
+    verificationBannerSub: {
+      fontSize: 12,
+      color: '#8e8e93',
+      marginTop: 2,
+    },
+    verifyEmailButton: {
+      backgroundColor: '#FF9500',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    verifyEmailButtonText: {
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    signOutButtonUnverified: {
+      marginTop: 16,
+      paddingVertical: 14,
+      borderRadius: 14,
+      backgroundColor: '#ff3b30',
+      alignItems: 'center',
+      minWidth: 160,
+    },
+    credibilityContainer: {
+      marginHorizontal: horizontalPadding,
+      marginBottom: sectionMargin,
+    },
+    credibilityCard: {
+      backgroundColor: "#fff",
+      borderRadius: 20,
+      padding: cardPadding,
+      borderWidth: 1,
+      borderColor: '#f0f0f5',
+      alignItems: 'center',
+    },
+    credibilityHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 12,
+    },
+    credibilityLabel: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: "#666",
+    },
+    credibilityBadge: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    credibilityPercentage: {
+      fontSize: credibilityFontSize,
+      fontWeight: "800",
+      color: "#1a1a2e",
+      marginBottom: 4,
+    },
+    credibilityStatus: {
+      fontSize: statusFontSize,
+      fontWeight: "700",
+      marginBottom: 8,
+    },
+    credibilityDesc: {
+      fontSize: 13,
+      color: "#8e8e93",
+      textAlign: 'center',
+    },
+    statsContainer: {
+      marginHorizontal: horizontalPadding,
+      marginBottom: sectionMargin,
+    },
+    statsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      backgroundColor: "#fff",
+      borderRadius: 20,
+      padding: cardPadding,
+      borderWidth: 1,
+      borderColor: '#f0f0f5',
+      gap: 12,
+    },
+    statCard: {
+      width: '48%',
+      alignItems: 'center',
+      paddingVertical: 16,
+      gap: 6,
+    },
+    statValue: {
+      fontSize: statValueFontSize,
+      fontWeight: "700",
+      color: "#1a1a2e",
+    },
+    statLabel: {
+      fontSize: 12,
+      color: '#8e8e93',
+      fontWeight: "500",
+    },
+    section: {
+      marginHorizontal: horizontalPadding,
+      marginBottom: sectionMargin,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: '#1E3A8A',
+      marginBottom: 12,
+      letterSpacing: -0.3,
+    },
+    infoCard: {
+      backgroundColor: "#fff",
+      borderRadius: 20,
+      paddingHorizontal: sectionPadding,
+      paddingBottom: sectionPadding,
+      borderWidth: 1,
+      borderColor: '#f0f0f5',
+    },
+    infoRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginVertical: 12,
+    },
+    infoLabel: {
+      fontSize: 14,
+      color: "#8e8e93",
+      fontWeight: "500",
+    },
+    infoValue: {
+      fontSize: 14,
+      color: "#1a1a2e",
+      fontWeight: "600",
+    },
+    emailStatusContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    emailStatusDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: "#f0f0f5",
+    },
+    levelsList: {
+      backgroundColor: "#fff",
+      borderRadius: 20,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: '#f0f0f5',
+      gap: 12,
+    },
+    levelItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    levelDot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+    },
+    levelContent: {
+      flex: 1,
+    },
+    levelTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#1a1a2e',
+    },
+    levelDesc: {
+      fontSize: 12,
+      color: '#8e8e93',
+      marginTop: 2,
+    },
+    signOutButton: {
+      marginHorizontal: horizontalPadding,
+      marginTop: 8,
+      paddingVertical: 14,
+      borderRadius: 14,
+      backgroundColor: '#ff3b30',
+      alignItems: 'center',
+      shadowColor: '#ff3b30',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    signOutText: {
+      fontSize: 16,
+      color: '#fff',
+      fontWeight: '700',
+    },
+    emptyState: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    emptyText: {
+      fontSize: 16,
+      color: "#1E3A8A",
+      textAlign: "center",
+      marginTop: 16,
+      marginBottom: 20,
+    },
+    loginPromptButton: {
+      backgroundColor: '#1E3A8A',
+      paddingVertical: 10,
+      paddingHorizontal: 24,
+      borderRadius: 20,
+    },
+    loginPromptText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    bottomSpacing: {
+      height: 40,
+    },
+  });
 
   const fetchUserProfile = useCallback(async () => {
     if (!userEmail) {
@@ -388,354 +739,3 @@ export default function ProfileScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f2f2f7",
-  },
-  loadingContainer: {
-    flex: 1,
-  },
-  loadingView: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerContainer: {
-    marginBottom: 16,
-  },
-  headerView: {
-    paddingHorizontal: horizontalPadding,
-    paddingTop: 28,
-    paddingBottom: 32,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  greetingText: {
-    fontSize: isSmallScreen ? 12 : 14,
-    color: "rgba(255, 255, 255, 0.7)",
-    fontWeight: "500",
-    marginBottom: 4,
-    letterSpacing: 0.3,
-  },
-  userNameText: {
-    fontSize: nameFontSize,
-    color: "#fff",
-    fontWeight: "700",
-    marginBottom: 6,
-    letterSpacing: -0.5,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  roleBadge: {
-    fontSize: isSmallScreen ? 10 : 12,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: isSmallScreen ? 8 : 10,
-    paddingVertical: isSmallScreen ? 2 : 3,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  title: {
-    fontSize: nameFontSize,
-    fontWeight: "700",
-    color: "#000",
-  },
-  avatarContainer: {
-    position: 'relative',
-  },
-  userAvatar: {
-    width: avatarSize,
-    height: avatarSize,
-    borderRadius: avatarSize / 2,
-    borderWidth: 2.5,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  avatarPlaceholder: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  verifiedBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#34c759',
-    borderRadius: avatarBadgeSize / 2,
-    width: avatarBadgeSize,
-    height: avatarBadgeSize,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2.5,
-    borderColor: '#1E3A8A',
-  },
-  verificationBlocked: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 60,
-  },
-  verificationBlockedTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1a1a2e',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  verificationBlockedSub: {
-    fontSize: 14,
-    color: '#8e8e93',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  verificationBannerText: {
-    flex: 1,
-  },
-  verificationBannerTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FF6D00',
-  },
-  verificationBannerSub: {
-    fontSize: 12,
-    color: '#8e8e93',
-    marginTop: 2,
-  },
-  verifyEmailButton: {
-    backgroundColor: '#FF9500',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  verifyEmailButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  signOutButtonUnverified: {
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: '#ff3b30',
-    alignItems: 'center',
-    minWidth: 160,
-  },
-  credibilityContainer: {
-    marginHorizontal: horizontalPadding,
-    marginBottom: sectionMargin,
-  },
-  credibilityCard: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: cardPadding,
-    borderWidth: 1,
-    borderColor: '#f0f0f5',
-    alignItems: 'center',
-  },
-  credibilityHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  credibilityLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#666",
-  },
-  credibilityBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  credibilityPercentage: {
-    fontSize: credibilityFontSize,
-    fontWeight: "800",
-    color: "#1a1a2e",
-    marginBottom: 4,
-  },
-  credibilityStatus: {
-    fontSize: statusFontSize,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  credibilityDesc: {
-    fontSize: 13,
-    color: "#8e8e93",
-    textAlign: 'center',
-  },
-  statsContainer: {
-    marginHorizontal: horizontalPadding,
-    marginBottom: sectionMargin,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: cardPadding,
-    borderWidth: 1,
-    borderColor: '#f0f0f5',
-    gap: 12,
-  },
-  statCard: {
-    width: '48%',
-    alignItems: 'center',
-    paddingVertical: 16,
-    gap: 6,
-  },
-  statValue: {
-    fontSize: statValueFontSize,
-    fontWeight: "700",
-    color: "#1a1a2e",
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#8e8e93",
-    fontWeight: "500",
-  },
-  section: {
-    marginHorizontal: horizontalPadding,
-    marginBottom: sectionMargin,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E3A8A',
-    marginBottom: 12,
-    letterSpacing: -0.3,
-  },
-  infoCard: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    paddingHorizontal: sectionPadding,
-    paddingBottom: sectionPadding,
-    borderWidth: 1,
-    borderColor: '#f0f0f5',
-  },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginVertical: 12,
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: "#8e8e93",
-    fontWeight: "500",
-  },
-  infoValue: {
-    fontSize: 14,
-    color: "#1a1a2e",
-    fontWeight: "600",
-  },
-  emailStatusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  emailStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#f0f0f5",
-  },
-  levelsList: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#f0f0f5',
-    gap: 12,
-  },
-  levelItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  levelDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  levelContent: {
-    flex: 1,
-  },
-  levelTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1a1a2e",
-  },
-  levelDesc: {
-    fontSize: 12,
-    color: "#8e8e93",
-    marginTop: 2,
-  },
-  signOutButton: {
-    marginHorizontal: horizontalPadding,
-    marginTop: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: '#ff3b30',
-    alignItems: 'center',
-    shadowColor: '#ff3b30',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  signOutText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '700',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: "#1E3A8A",
-    textAlign: "center",
-    marginTop: 16,
-    marginBottom: 20,
-  },
-  loginPromptButton: {
-    backgroundColor: '#1E3A8A',
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 20,
-  },
-  loginPromptText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  bottomSpacing: {
-    height: 40,
-  },
-});

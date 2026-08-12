@@ -34,7 +34,7 @@ export default function LoginScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { setUserEmail, setUserName, setUserPhoto, setUserPhone, setIdToken, setUserRole, setAuthMethod, setEmailVerified } = useAuth();
+  const { setUserEmail, setUserName, setUserPhoto, setUserPhone, setIdToken, setUserRole, setAuthMethod, setEmailVerified, setIsSignedIn } = useAuth();
 
   const handleGoogleSignin = async () => {
     if (isLoading) return;
@@ -66,9 +66,10 @@ export default function LoginScreen() {
             userPhoto && setUserPhoto(userPhoto);
             setIdToken(result.token);
             setUserRole(decodeJwtRole(result.token));
-            setAuthMethod('GOOGLE');
-            setEmailVerified(result.user?.emailVerified || false);
-            await AsyncStorage.multiSet([
+             setAuthMethod('GOOGLE');
+             setEmailVerified(result.user?.emailVerified || false);
+             setIsSignedIn(true);
+             await AsyncStorage.multiSet([
               ['idToken', result.token],
               ['userEmail', userEmail],
               ['userName', userName || ''],
@@ -125,9 +126,10 @@ export default function LoginScreen() {
             setUserPhone(result.user.phoneNumber || null);
             setIdToken(result.token);
             setUserRole(decodeJwtRole(result.token));
-            setAuthMethod('USERNAME_PASSWORD');
-            setEmailVerified(result.user.emailVerified || false);
-            await AsyncStorage.multiSet([
+             setAuthMethod('USERNAME_PASSWORD');
+             setEmailVerified(result.user.emailVerified || false);
+             setIsSignedIn(true);
+             await AsyncStorage.multiSet([
               ['idToken', result.token],
               ['userEmail', result.user.email],
               ['userName', result.user.name || ''],

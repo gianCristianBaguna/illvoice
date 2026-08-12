@@ -39,6 +39,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
       "expo-router",
       [
         "@react-native-google-signin/google-signin",
@@ -70,13 +71,6 @@
         {
           "locationWhenInUsePermission": "Allow Illvoice to use your location to identify your barangay for reports.",
           "locationAlwaysAndWhenInUsePermission": "Allow Illvoice to use your location to identify your barangay for reports."
-        }
-      ],
-      [
-        "react-native-maps",
-        {
-          "mapsVersion": "google-play-services-maps@18.2.0",
-          "apiKey": "AIzaSyASTc0FN3JBdR8cmUb51CbuwQlNgl1Y5m0"
         }
       ],
       "expo-secure-store",

@@ -516,6 +516,14 @@ export async function fetchEmergencyNumbers(): Promise<EmergencyNumber[]> {
   return await res.json();
 }
 
+export async function fetchPublicEmergencyNumbers(): Promise<EmergencyNumber[]> {
+  const res = await fetch(`${BACKEND_URL}/api/emergency-numbers/emergency-numbers`);
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
+}
+
 export async function createEmergencyNumber(data: {
   category: string;
   number: string;

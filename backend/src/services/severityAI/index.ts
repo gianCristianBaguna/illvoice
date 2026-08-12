@@ -218,48 +218,21 @@ export async function analyzeSeverity({
         return getRuleBasedSeverity(title, description, undefined, category);
     }
 
-    if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
-        console.warn("⚠️ No AI API key set - falling back to rule-based analysis");
-    }
-
     const { combinedTranscript, imageAnalysis } = await analyzeMediaItems(items);
-    const textProvider = getTextProvider();
 
-    try {
-        const aiSeverity = await textProvider.classifySeverity(
-            title,
-            description,
-            combinedTranscript || undefined,
-            imageAnalysis ?? undefined,
-            category
-        );
+    const ruleBasedSeverity = await getRuleBasedSeverity(
+        title,
+        description,
+        combinedTranscript || undefined,
+        category
+    );
+    const hazardSeverity = imageAnalysis?.hazards?.length
+        ? await getHazardSeverity(imageAnalysis.hazards)
+        : "LOW";
 
-        const ruleBasedSeverity = await getRuleBasedSeverity(
-            title,
-            description,
-            combinedTranscript || undefined,
-            category
-        );
-        const hazardSeverity = imageAnalysis?.hazards?.length
-            ? await getHazardSeverity(imageAnalysis.hazards)
-            : "LOW";
-
-        const severities = [aiSeverity, ruleBasedSeverity, hazardSeverity];
-        if (severities.includes("HIGH")) return "HIGH";
-        if (severities.includes("MODERATE")) return "MODERATE";
-        return "LOW";
-    } catch (err: any) {
-        console.error("❌ AI analysis failed, falling back to rules:", err.message);
-
-        if (imageAnalysis?.hazards?.length) {
-            const hazardSeverity = await getHazardSeverity(imageAnalysis.hazards);
-            if (hazardSeverity !== "LOW") {
-                return hazardSeverity;
-            }
-        }
-
-        return getRuleBasedSeverity(title, description, combinedTranscript || undefined, category);
-    }
+    if (hazardSeverity === "HIGH" || ruleBasedSeverity === "HIGH") return "HIGH";
+    if (hazardSeverity === "MODERATE" || ruleBasedSeverity === "MODERATE") return "MODERATE";
+    return "LOW";
 }
 
 export async function generateAIInsights({

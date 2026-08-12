@@ -1,6 +1,6 @@
 import { prisma } from '../prisma';
 import { runFraudChecks } from './fraudDetection';
-import { analyzeSeverity, generateAIInsights, generateAITitle, getVisionProvider, getAudioProvider } from './severityAI';
+import { analyzeSeverity, generateAIInsights, getVisionProvider, getAudioProvider } from './severityAI';
 import { broadcastToUser } from '../sse';
 
 export interface BackgroundAnalysisOptions {
@@ -133,20 +133,13 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
           category: report.category || category || undefined,
         });
 
-        const aiTitle = await generateAITitle(
-          report.title,
-          report.description,
-          imageAnalysis?.hazards,
-          report.category || category
-        );
-
         const aiDescription = insights.length > 20 ? insights : report.description;
 
         await prisma.report.update({
           where: { id: reportId },
           data: {
             severity: normalizedSeverity,
-            title: aiTitle,
+            title: report.title,
             description: aiDescription,
           },
         });
@@ -155,7 +148,7 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
           data: {
             userId,
             title: "Report Analysis Complete",
-            message: `Your report "${aiTitle}" has been analyzed. Severity: ${normalizedSeverity}`,
+            message: `Your report "${report.title}" has been analyzed. Severity: ${normalizedSeverity}`,
             type: "AI_ANALYSIS_COMPLETE",
             reportId,
           },
@@ -170,7 +163,7 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
               analysis: {
                 aiSeverity: normalizedSeverity,
                 insights,
-                aiTitle,
+                aiTitle: report.title,
                 analyzedAt: new Date().toISOString(),
               },
             },

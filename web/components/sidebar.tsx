@@ -10,6 +10,8 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { href: '/reports', label: 'Reports', icon: <BarChart3 size={18} /> },
   { href: '/map', label: 'Map View', icon: <MapPin size={18} /> },
+  { href: '/emergency-contacts', label: 'Emergency Contacts', icon: <Phone size={18} /> },
+  { href: '/announcements', label: 'Announcements', icon: <Megaphone size={18} /> },
 ]
 
 function getLinkClasses(isActive: boolean) {
@@ -38,13 +40,12 @@ export function Sidebar() {
         { href: '/barangay-dashboard', label: 'My Dashboard', icon: <LayoutDashboard size={18} /> },
         { href: '/reports', label: 'Reports', icon: <BarChart3 size={18} /> },
         { href: '/map', label: 'Map View', icon: <MapPin size={18} /> },
+        { href: '/emergency-contacts', label: 'Emergency Contacts', icon: <Phone size={18} /> },
       ]
     : []
 
   const systemItems = [
     { href: '/analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
-    { href: '/announcements', label: 'Announcements', icon: <Megaphone size={18} /> },
-    { href: '/emergency-numbers', label: 'Emergency Numbers', icon: <Phone size={18} /> },
     { href: '/settings', label: 'Settings', icon: <Settings size={18} /> },
   ]
 

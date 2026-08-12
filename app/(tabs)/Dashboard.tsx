@@ -137,14 +137,6 @@ export default function Dashboard() {
     setMapModalVisible(true);
   };
 
-  const handleCommunityPress = () => {
-    router.push('/community' as any);
-  };
-
-  const handleEmergencyPress = () => {
-    router.push('/emergency' as any);
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -244,30 +236,27 @@ export default function Dashboard() {
 
       {/* Quick Actions */}
       <View style={styles.quickActionsContainer}>
-        <TouchableOpacity style={styles.quickAction} onPress={openMapModal}>
-          <View style={[styles.quickActionIcon, { backgroundColor: '#f0f0ff' }]}>
-            <Ionicons name="map" size={22} color="#1E3A8A" />
-          </View>
-          <Text style={styles.quickActionText}>Map</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickAction} onPress={handleCommunityPress}>
-          <View style={[styles.quickActionIcon, { backgroundColor: '#f0fdf4' }]}>
-            <Ionicons name="people" size={22} color="#166534" />
-          </View>
-          <Text style={styles.quickActionText}>Community</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickAction} onPress={handleEmergencyPress}>
-          <View style={[styles.quickActionIcon, { backgroundColor: '#fff7ed' }]}>
-            <Ionicons name="call" size={22} color="#9a3412" />
-          </View>
-          <Text style={styles.quickActionText}>Emergency</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/alerts' as any)}>
-          <View style={[styles.quickActionIcon, { backgroundColor: '#f5f5ff' }]}>
-            <Ionicons name="time" size={22} color="#1E3A8A" />
-          </View>
-          <Text style={styles.quickActionText}>History</Text>
-        </TouchableOpacity>
+        <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+        <View style={styles.quickActionsRow}>
+          <TouchableOpacity style={styles.quickAction} onPress={openMapModal}>
+            <View style={[styles.quickActionIcon, { backgroundColor: '#f0f0ff' }]}>
+              <Ionicons name="map" size={22} color="#1E3A8A" />
+            </View>
+            <Text style={styles.quickActionText}>Maps</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/screens/Community')}>
+            <View style={[styles.quickActionIcon, { backgroundColor: '#f5f5ff' }]}>
+              <Ionicons name="people" size={22} color="#1E3A8A" />
+            </View>
+            <Text style={styles.quickActionText}>Community</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/screens/Emergency')}>
+            <View style={[styles.quickActionIcon, { backgroundColor: '#ffe5e5' }]}>
+              <Ionicons name="warning" size={22} color="#dc2626" />
+            </View>
+            <Text style={styles.quickActionText}>Emergency</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Recent Reports */}
@@ -463,7 +452,7 @@ export default function Dashboard() {
         onRequestClose={() => setMapModalVisible(false)}
       >
         <View style={styles.mapModalOverlay}>
-          <View style={styles.mapModalHeader}>
+          <View style={[styles.mapModalHeader, { paddingTop: Math.max(insets.top, 12) }]}>
             <Text style={styles.mapModalTitle}>Pinned Reports</Text>
             <TouchableOpacity onPress={() => setMapModalVisible(false)} style={styles.mapModalCloseButton}>
               <Ionicons name="close" size={24} color="#666" />
@@ -688,10 +677,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   quickActionsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     paddingHorizontal: 20,
     marginBottom: 28,
+    gap: 12,
+  },
+  quickActionsTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E3A8A',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 10,
   },
   quickAction: {
@@ -1056,7 +1056,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: Math.max(insets.top, 12),
+    paddingTop: 12,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f5',

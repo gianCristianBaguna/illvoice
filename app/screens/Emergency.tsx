@@ -111,6 +111,9 @@ export default function EmergencyScreen() {
       <View style={styles.headerContainer}>
         <View style={[styles.headerView, { backgroundColor: '#1E3A8A' }]}>
           <View style={styles.headerContent}>
+            <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
             <View style={styles.headerLeft}>
               <Text style={styles.greetingText}>Emergency</Text>
               <Text style={styles.headerSubtitle}>Important contact numbers</Text>

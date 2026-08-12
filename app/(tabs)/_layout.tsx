@@ -24,17 +24,17 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="Alerts"
+          name="History"
           options={{
-            title: 'Alerts',
-            tabBarIcon: ({ color }) => <Ionicons name="notifications" size={24} color={color} />,
+            title: 'History',
+            tabBarIcon: ({ color }) => <Ionicons name="time" size={24} color={color} />,
           }}
         />
         <Tabs.Screen
-          name="Community"
+          name="Notifications"
           options={{
-            title: 'Community',
-            tabBarIcon: ({ color }) => <Ionicons name="people" size={24} color={color} />,
+            title: 'Notifications',
+            tabBarIcon: ({ color }) => <Ionicons name="notifications" size={24} color={color} />,
           }}
         />
         <Tabs.Screen

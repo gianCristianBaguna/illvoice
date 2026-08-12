@@ -28,7 +28,7 @@ export default function SignUpScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { setUserEmail, setUserName, setUserPhone, setIdToken, setUserRole, setAuthMethod, setEmailVerified } = useAuth();
+  const { setUserEmail, setUserName, setUserPhone, setIdToken, setUserRole, setAuthMethod, setEmailVerified, setIsSignedIn } = useAuth();
 
   const handleSignUp = async () => {
     if (!email.trim() || !password.trim() || !fullName.trim() || !phoneNumber.trim()) {
@@ -80,6 +80,7 @@ export default function SignUpScreen() {
           setUserRole(decodeJwtRole(loginResult.token));
           setAuthMethod('USERNAME_PASSWORD');
           setEmailVerified(loginResult.user.emailVerified || false);
+          setIsSignedIn(true);
           await AsyncStorage.multiSet([
             ['idToken', loginResult.token],
             ['userEmail', loginResult.user.email],
