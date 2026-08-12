@@ -213,12 +213,29 @@ export async function analyzeSeverity({
     category?: string;
 }): Promise<string> {
     const items = normalizeMediaList(mediaType, mediaUrl, mediaItems);
+    const textProvider = getTextProvider();
 
-    if (!items.length) {
-        return getRuleBasedSeverity(title, description, undefined, category);
+    let combinedTranscript = "";
+    let imageAnalysis: any = undefined;
+
+    if (items.length) {
+        const result = await analyzeMediaItems(items);
+        combinedTranscript = result.combinedTranscript;
+        imageAnalysis = result.imageAnalysis;
     }
 
-    const { combinedTranscript, imageAnalysis } = await analyzeMediaItems(items);
+    let aiSeverity: string | null = null;
+    try {
+        aiSeverity = await textProvider.classifySeverity(
+            title,
+            description,
+            combinedTranscript || undefined,
+            imageAnalysis || undefined,
+            category
+        );
+    } catch (err: any) {
+        console.error("❌ AI severity classification failed, falling back to rule-based:", err.message);
+    }
 
     const ruleBasedSeverity = await getRuleBasedSeverity(
         title,
@@ -230,8 +247,10 @@ export async function analyzeSeverity({
         ? await getHazardSeverity(imageAnalysis.hazards)
         : "LOW";
 
-    if (hazardSeverity === "HIGH" || ruleBasedSeverity === "HIGH") return "HIGH";
-    if (hazardSeverity === "MODERATE" || ruleBasedSeverity === "MODERATE") return "MODERATE";
+    const severities = [aiSeverity, ruleBasedSeverity, hazardSeverity].filter(Boolean) as string[];
+
+    if (severities.includes("HIGH")) return "HIGH";
+    if (severities.includes("MODERATE")) return "MODERATE";
     return "LOW";
 }
 
