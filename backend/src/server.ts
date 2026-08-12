@@ -72,8 +72,8 @@ app.use("/api/emergency-numbers", publicEmergencyNumberRoutes);
 app.use("/dashboard", dashboardRoutes);
 
 // Protected routes - user requires valid JWT
-app.use("/api/user", authenticateToken, requireEmailVerified, userRoutes);
-app.use("/api/notifications", authenticateToken, requireEmailVerified, notificationRoutes);
+app.use("/api/user", authenticateToken, userRoutes);
+app.use("/api/notifications", authenticateToken, notificationRoutes);
 
 // SSE stream endpoint - handles auth via query param (EventSource doesn't support headers)
 app.get("/api/notifications/stream", async (req: any, res: express.Response) => {
