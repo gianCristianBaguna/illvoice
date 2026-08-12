@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../../prisma';
-import { generateVerificationCode, sendVerificationEmail } from '../../utils/email';
+import { generateVerificationCode } from '../../utils/email';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || '0ed61e861b352aeed7230f238dd766ef4535b60d8f0b74543f8c160097afc3d6';
@@ -121,8 +121,6 @@ router.post('/', async (req: Request, res: Response) => {
         verificationTokenExpiry: expiry,
       },
     });
-
-    await sendVerificationEmail(user.email, code, user.name || undefined);
 
     const token = signUserToken({
       id: user.id,
