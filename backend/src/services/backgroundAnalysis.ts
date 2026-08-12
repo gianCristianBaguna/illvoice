@@ -1,6 +1,6 @@
 import { prisma } from '../prisma';
 import { runFraudChecks } from './fraudDetection';
-import { analyzeSeverity, generateAIInsights, getVisionProvider, getAudioProvider } from './severityAI';
+import { analyzeSeverity, generateAIInsights, getTextProvider, getVisionProvider, getAudioProvider } from './severityAI';
 import { broadcastToUser } from '../sse';
 
 export interface BackgroundAnalysisOptions {
@@ -53,26 +53,32 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
 
       let imageAnalysis: any = undefined;
       let transcript = "";
+      const itemAnalysisMap = new Map<string, { type: string; visionResult?: any; transcriptText?: string }>();
 
       if (hasMedia) {
         const visionProvider = getVisionProvider();
         const audioProvider = getAudioProvider();
 
-        for (const item of mediaList) {
-          if (item.type === "IMAGE" || item.type === "VIDEO") {
+        for (const m of report.multimedia || []) {
+          if (m.type === "IMAGE" || m.type === "VIDEO") {
             try {
-              imageAnalysis = item.type === "IMAGE"
-                ? await visionProvider.analyzeImage(item.url)
-                : await visionProvider.analyzeVideoMultiFrame(item.url);
+              const visionResult = m.type === "IMAGE"
+                ? await visionProvider.analyzeImage(m.url)
+                : await visionProvider.analyzeVideoMultiFrame(m.url);
+              itemAnalysisMap.set(m.id, { type: m.type, visionResult });
+              imageAnalysis = visionResult;
             } catch (e) {
-              console.error(`[BackgroundAnalysis] Vision analysis failed for ${item.url}:`, e);
+              console.error(`[BackgroundAnalysis] Vision analysis failed for ${m.url}:`, e);
             }
-          } else if (item.type === "AUDIO") {
+          } else if (m.type === "AUDIO") {
             try {
-              const tr = await audioProvider.transcribe(item.url);
-              if (tr) transcript += (transcript ? " " : "") + tr;
+              const tr = await audioProvider.transcribe(m.url);
+              if (tr) {
+                itemAnalysisMap.set(m.id, { type: m.type, transcriptText: tr });
+                transcript += (transcript ? " " : "") + tr;
+              }
             } catch (e) {
-              console.error(`[BackgroundAnalysis] Audio transcription failed for ${item.url}:`, e);
+              console.error(`[BackgroundAnalysis] Audio transcription failed for ${m.url}:`, e);
             }
           }
         }
@@ -134,7 +140,6 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
         });
 
         const aiDescription = insights.length > 20 ? insights : report.description;
-        const analysisTitle = insights.length > 5 ? insights.split(/[.\n]/)[0].trim().slice(0, 120) : report.title;
 
         await prisma.report.update({
           where: { id: reportId },
@@ -157,6 +162,38 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
 
         broadcastToUser(userId, { type: "new_notification", reportId });
 
+        const textProvider = getTextProvider();
+        const itemTitleEntries = Array.from(itemAnalysisMap.entries());
+        const itemTitles = await Promise.all(
+          itemTitleEntries.map(async ([id, itemData]) => {
+            try {
+              if (itemData.type === "IMAGE" || itemData.type === "VIDEO") {
+                return await textProvider.generateAITitle(
+                  report.title,
+                  itemData.visionResult.description,
+                  itemData.visionResult.hazards,
+                  report.category || category
+                );
+              } else if (itemData.type === "AUDIO") {
+                return await textProvider.generateAITitle(
+                  report.title,
+                  itemData.transcriptText || "",
+                  undefined,
+                  report.category || category
+                );
+              }
+              return report.title;
+            } catch (e) {
+              console.error(`[BackgroundAnalysis] AI title generation failed for media ${id}:`, e);
+              return report.title;
+            }
+          })
+        );
+        const itemTitleMap = new Map<string, string>();
+        itemTitleEntries.forEach(([id, _], idx) => {
+          itemTitleMap.set(id, itemTitles[idx]);
+        });
+
         for (const m of report.multimedia || []) {
           await prisma.multimedia.update({
             where: { id: m.id },
@@ -164,7 +201,7 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
               analysis: {
                 aiSeverity: normalizedSeverity,
                 insights,
-                aiTitle: analysisTitle,
+                aiTitle: itemTitleMap.get(m.id) || report.title,
                 analyzedAt: new Date().toISOString(),
               },
             },
