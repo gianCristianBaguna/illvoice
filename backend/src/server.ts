@@ -73,6 +73,7 @@ app.use("/dashboard", dashboardRoutes);
 
 // Protected routes - user requires valid JWT
 app.use("/api/user", authenticateToken, userRoutes);
+
 app.use("/api/notifications", authenticateToken, notificationRoutes);
 
 // SSE stream endpoint - handles auth via query param (EventSource doesn't support headers)

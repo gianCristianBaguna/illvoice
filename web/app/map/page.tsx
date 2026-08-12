@@ -123,7 +123,7 @@ export default function MapViewPage() {
       markersRef.current.push(marker);
     });
 
-    if (showHeatmap && reportsWithLocationRef.current.length > 0) {
+    if (showHeatmapRef.current && reportsWithLocationRef.current.length > 0) {
       const heatmapData = reportsWithLocationRef.current.map((report) => [
         report.latitude,
         report.longitude,
@@ -144,6 +144,11 @@ export default function MapViewPage() {
         heatmapRef.current = heatmapLayer;
       }
     }
+  }, []);
+
+  const showHeatmapRef = useRef(showHeatmap);
+  useEffect(() => {
+    showHeatmapRef.current = showHeatmap;
   }, [showHeatmap]);
 
   useEffect(() => {
@@ -211,10 +216,8 @@ export default function MapViewPage() {
       map.on('moveend', syncVisibleReports);
       map.on('zoomend', syncVisibleReports);
 
-      // Initial marker refresh
       refreshMarkers();
 
-      // Invalidate map size to ensure proper rendering
       setTimeout(() => {
         map.invalidateSize();
       }, 100);
@@ -227,8 +230,6 @@ export default function MapViewPage() {
         leafletRef.current = null;
         markersRef.current = [];
       };
-
-      return cleanupRef.current;
     };
 
     initMap();
@@ -240,7 +241,7 @@ export default function MapViewPage() {
         cleanupRef.current = null;
       }
     };
-  }, [refreshMarkers]);
+  }, []);
 
   const handleLogout = async () => {
     await logout();

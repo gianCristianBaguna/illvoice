@@ -1,51 +1,43 @@
-import { type Request, type Response } from 'express';
+import { Response } from 'express';
 
-interface SSEClient {
+export interface SSEClient {
+  userId: string;
   res: Response;
 }
 
 const clients = new Map<string, SSEClient[]>();
 
 export function addClient(userId: string, res: Response) {
-  if (!clients.has(userId)) {
-    clients.set(userId, []);
-  }
-  clients.get(userId)!.push({ res });
+  const existing = clients.get(userId) || [];
+  existing.push({ userId, res });
+  clients.set(userId, existing);
 }
 
 export function removeClient(userId: string, res: Response) {
-  const userClients = clients.get(userId);
-  if (userClients) {
-    const index = userClients.findIndex(client => client.res === res);
-    if (index > -1) {
-      userClients.splice(index, 1);
-    }
-    if (userClients.length === 0) {
-      clients.delete(userId);
-    }
+  const existing = clients.get(userId) || [];
+  const filtered = existing.filter(client => client.res !== res);
+  if (filtered.length === 0) {
+    clients.delete(userId);
+  } else {
+    clients.set(userId, filtered);
   }
 }
 
 export function broadcastToUser(userId: string, data: any) {
-  const userClients = clients.get(userId);
-  if (userClients) {
-    const message = `data: ${JSON.stringify(data)}\n\n`;
-    userClients.forEach(client => {
-      try {
-        client.res.write(message);
-      } catch (err) {
-        console.error('Failed to send SSE message:', err);
-      }
-    });
-  }
+  const userClients = clients.get(userId) || [];
+  userClients.forEach(client => {
+    try {
+      client.res.write(`data: ${JSON.stringify(data)}\n\n`);
+    } catch (err) {
+      console.error('Failed to send SSE message:', err);
+    }
+  });
 }
 
 export function setupSSEHeaders(req: Request, res: Response) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Authorization');
 }
 
 export function sendSSEKeepAlive(res: Response) {
@@ -53,5 +45,5 @@ export function sendSSEKeepAlive(res: Response) {
 }
 
 export function sendSSEError(res: Response, error: string) {
-  res.write(`error: ${error}\n\n`);
+  res.write(`event: error\ndata: ${JSON.stringify({ error })}\n\n`);
 }

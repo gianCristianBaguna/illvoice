@@ -52,7 +52,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-type SettingsTab = 'profile' | 'notifications' | 'register-official' | 'register-barangay' | 'manage-barangays' | 'manage-officials'
+type SettingsTab = 'profile' | 'register-official' | 'register-barangay' | 'manage-barangays' | 'manage-officials'
 
 interface AdminProfile {
   email: string
@@ -474,7 +474,6 @@ export default function SettingsPage() {
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'profile', label: 'Profile', icon: <User size={16} /> },
-    { id: 'notifications', label: 'Notifications', icon: <Bell size={16} /> },
     ...(adminRole === 'ADMIN' ? [
       { id: 'register-official' as const, label: 'Register Official', icon: <Plus size={16} /> },
       { id: 'register-barangay' as const, label: 'Register Barangay', icon: <MapPin size={16} /> },
@@ -654,35 +653,6 @@ export default function SettingsPage() {
                           <Button onClick={() => setSaving(true)} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
                             {saving ? 'Saving...' : 'Save Changes'}
                           </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {activeTab === 'notifications' && (
-                    <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
-                      <CardHeader className="border-b border-slate-100">
-                        <CardTitle className="text-base font-semibold text-black">Notification Preferences</CardTitle>
-                        <CardDescription className="text-slate-600">Choose what alerts and notifications you receive</CardDescription>
-                      </CardHeader>
-                      <CardContent className="p-6 space-y-4">
-                        {[
-                          { label: 'New complaint reports', desc: 'Receive alerts when new complaints are submitted to the system' },
-                          { label: 'Status changes', desc: 'Get notified when a complaint status is updated' },
-                          { label: 'High severity alerts', desc: 'Immediate notification for high priority complaints' },
-                          { label: 'Weekly summary', desc: 'Receive a weekly digest of complaint activity and metrics' },
-                          { label: 'System updates', desc: 'Get notified about platform maintenance and new features' },
-                        ].map((item) => (
-                          <div key={item.label} className="flex items-start justify-between gap-4 py-3 border-b border-slate-100 last:border-0">
-                            <div className="space-y-0.5">
-                              <p className="text-sm font-medium text-black">{item.label}</p>
-                              <p className="text-xs text-slate-600">{item.desc}</p>
-                            </div>
-                            <Switch defaultChecked={item.label !== 'System updates'} />
-                          </div>
-                        ))}
-                        <div className="flex justify-end pt-4">
-                          <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Preferences</Button>
                         </div>
                       </CardContent>
                     </Card>
