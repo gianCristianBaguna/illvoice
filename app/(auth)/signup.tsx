@@ -30,6 +30,20 @@ export default function SignUpScreen() {
 
   const { setUserEmail, setUserName, setUserPhone, setIdToken, setUserRole, setAuthMethod, setEmailVerified, setIsSignedIn } = useAuth();
 
+  const sendVerificationCode = async (token: string) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/auth/verify-email/send-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to send verification code:', error);
+    }
+  };
+
   const handleSignUp = async () => {
     if (!email.trim() || !password.trim() || !fullName.trim() || !phoneNumber.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -93,6 +107,7 @@ export default function SignUpScreen() {
           if (loginResult.user.emailVerified) {
             router.replace('/(tabs)/Dashboard');
           } else {
+            sendVerificationCode(loginResult.token);
             router.replace('/(auth)/verify-email');
           }
         } else {

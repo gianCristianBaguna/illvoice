@@ -22,6 +22,7 @@ interface AuthContextType {
   setUserPhone: (phone: string | null) => void;
   setIdToken: (token: string | null) => void;
   setAuthMethod: (method: string) => void;
+  setIsSignedIn: (signedIn: boolean) => void;
   signOut: () => Promise<void>;
   restoreToken: () => Promise<void>;
 }
@@ -177,6 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUserPhone,
         setIdToken,
         setAuthMethod,
+        setIsSignedIn,
         signOut,
         restoreToken,
       }}

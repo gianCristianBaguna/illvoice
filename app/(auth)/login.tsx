@@ -78,11 +78,12 @@ export default function LoginScreen() {
               ['authMethod', 'GOOGLE'],
               ['emailVerified', String(result.user?.emailVerified || false)],
             ]);
-            if (result.user?.emailVerified) {
-              router.replace('/(tabs)/Dashboard');
-            } else {
-              router.replace('/(auth)/verify-email');
-            }
+             if (result.user?.emailVerified) {
+               router.replace('/(tabs)/Dashboard');
+             } else {
+               sendVerificationCode(result.token);
+               router.replace('/(auth)/verify-email');
+             }
           } else {
             console.log("Google auth failed:", backendResponse.status, result);
             Alert.alert('Error', result.error || 'Google authentication failed');
@@ -96,6 +97,20 @@ export default function LoginScreen() {
       Alert.alert('Error', `Google Sign-in failed: ${error}`);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const sendVerificationCode = async (token: string) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/auth/verify-email/send-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to send verification code:', error);
     }
   };
 
@@ -143,6 +158,7 @@ export default function LoginScreen() {
             if (result.user.emailVerified) {
               router.replace('/(tabs)/Dashboard');
             } else {
+              sendVerificationCode(result.token);
               router.replace('/(auth)/verify-email');
             }
           } else {

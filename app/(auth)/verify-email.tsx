@@ -119,6 +119,9 @@ export default function VerifyEmailScreen() {
   };
 
   const handleSendCode = async () => {
+    setIsResending(true);
+    setDevCode(null);
+
     try {
       const response = await fetch(`${BACKEND_URL}/api/auth/verify-email/send-code`, {
         method: 'POST',
@@ -162,13 +165,10 @@ export default function VerifyEmailScreen() {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert('Error', `Network error: ${errorMessage}\n\nBackend: ${BACKEND_URL}`);
+    } finally {
+      setIsResending(false);
     }
   };
-
-  useEffect(() => {
-    handleSendCode();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <View style={styles.container}>
