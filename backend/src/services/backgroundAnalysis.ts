@@ -134,6 +134,7 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
         });
 
         const aiDescription = insights.length > 20 ? insights : report.description;
+        const analysisTitle = insights.length > 5 ? insights.split(/[.\n]/)[0].trim().slice(0, 120) : report.title;
 
         await prisma.report.update({
           where: { id: reportId },
@@ -163,7 +164,7 @@ export async function scheduleBackgroundAnalysis(options: BackgroundAnalysisOpti
               analysis: {
                 aiSeverity: normalizedSeverity,
                 insights,
-                aiTitle: report.title,
+                aiTitle: analysisTitle,
                 analyzedAt: new Date().toISOString(),
               },
             },

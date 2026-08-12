@@ -73,6 +73,8 @@ function normalizeMediaUrl(url: string) {
 function MediaPreview({ media, index }: { media: MediaFile; index: number }) {
   const [failedToLoad, setFailedToLoad] = useState(false);
   const mediaUrl = normalizeMediaUrl(media.url);
+  const analysisTitle = media.analysis?.aiTitle as string | undefined;
+  const displayTitle = analysisTitle || media.type.replace('_', ' ');
 
   if (media.type === 'IMAGE') {
     if (failedToLoad) {
@@ -90,7 +92,7 @@ function MediaPreview({ media, index }: { media: MediaFile; index: number }) {
           className="h-44 w-full rounded-lg bg-white object-cover"
           onError={() => setFailedToLoad(true)}
         />
-        <p className="text-center text-xs text-slate-500">Image</p>
+        <p className="text-center text-xs text-slate-500 truncate" title={displayTitle}>{displayTitle}</p>
       </div>
     );
   }
@@ -103,7 +105,7 @@ function MediaPreview({ media, index }: { media: MediaFile; index: number }) {
           controls
           className="h-44 w-full rounded-lg bg-black"
         />
-        <p className="text-center text-xs text-slate-500">Video</p>
+        <p className="text-center text-xs text-slate-500 truncate" title={displayTitle}>{displayTitle}</p>
       </div>
     );
   }
@@ -116,7 +118,7 @@ function MediaPreview({ media, index }: { media: MediaFile; index: number }) {
           src={mediaUrl}
           className="w-full"
         />
-        <p className="text-center text-xs text-slate-500">Audio Recording</p>
+        <p className="text-center text-xs text-slate-500 truncate" title={displayTitle}>{displayTitle}</p>
       </div>
     );
   }
@@ -128,7 +130,7 @@ function MediaPreview({ media, index }: { media: MediaFile; index: number }) {
           {media.url}
         </p>
       </div>
-      <p className="text-center text-xs text-slate-500">Text Note</p>
+      <p className="text-center text-xs text-slate-500 truncate" title={displayTitle}>{displayTitle}</p>
     </div>
   );
 }
