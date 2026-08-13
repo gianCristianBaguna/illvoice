@@ -1,7 +1,9 @@
 'use client';
 
+import 'leaflet/dist/leaflet.css';
 
 import { Sidebar } from '@/components/sidebar';
+import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/auth-context';
@@ -51,6 +53,21 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#039;');
 }
 
+function loadHeatmapScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if ((window as any).L?.heatLayer) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = '/leaflet-heat.js';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load leaflet-heat.js'));
+    document.head.appendChild(script);
+  });
+}
+
 export default function MapViewPage() {
   const [reports, setReports] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,8 +76,11 @@ export default function MapViewPage() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<LeafletMarker[]>([]);
-  const leafletRef = useRef<LeafletModule | null>(null);
+  const leafletRef = useRef<any>(null);
   const reportsWithLocationRef = useRef<Complaint[]>([]);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const heatmapLayerRef = useRef<any>(null);
+  const [heatPluginReady, setHeatPluginReady] = useState(false);
 
   const { isAuthenticated, logout } = useAuth();
   const router = useRouter();
@@ -80,7 +100,7 @@ export default function MapViewPage() {
     markersRef.current = [];
 
     reportsWithLocationRef.current.forEach((report) => {
-      const severity = severityInfo[report.severity];
+      const severity = severityInfo[report.severity] || severityInfo['LOW'];
       const icon = L.divIcon({
         className: 'map-pin-icon',
         html: `<span class="map-pin ${severity.className}"></span>`,
@@ -130,41 +150,84 @@ export default function MapViewPage() {
   }, [reportsWithLocation, refreshMarkers]);
 
   useEffect(() => {
+    const L = leafletRef.current;
+    const map = mapRef.current;
+
+    if (!L || !map || !heatPluginReady) return;
+
+    if (heatmapLayerRef.current) {
+      map.removeLayer(heatmapLayerRef.current);
+      heatmapLayerRef.current = null;
+    }
+
+    if (showHeatmap && reportsWithLocation.length > 0 && L.heatLayer) {
+      const heatData = reportsWithLocation.map((report) => {
+        const intensity =
+          report.severity === 'HIGH'
+            ? 1.0
+            : report.severity === 'MODERATE'
+              ? 0.6
+              : 0.3;
+        return [report.latitude, report.longitude, intensity] as [number, number, number];
+      });
+
+      heatmapLayerRef.current = L.heatLayer(heatData, {
+        radius: 25,
+        blur: 15,
+        maxZoom: 17,
+        max: 1.0,
+        gradient: { 0.4: '#3b82f6', 0.65: '#84cc16', 1: '#ef4444' },
+      }).addTo(map);
+    }
+  }, [showHeatmap, reportsWithLocation, heatPluginReady]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const initMap = async () => {
-      try {
-        if (!mapContainerRef.current) return;
+      if (!mapContainerRef.current || leafletRef.current) return;
 
-        const leaflet = await import('leaflet');
-        const L = (leaflet.default || leaflet) as LeafletModule;
+      const leaflet = await import('leaflet');
+      const L = (leaflet.default || leaflet) as any;
 
-        if (cancelled) return;
+      if (cancelled) return;
 
-        leafletRef.current = L;
-
-        const map = L.map(mapContainerRef.current, {
-          center: DEFAULT_CENTER,
-          zoom: 7,
-          scrollWheelZoom: true,
-        });
-
-        mapRef.current = map;
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap contributors',
-        }).addTo(map);
-
-        refreshMarkers();
-
-        setTimeout(() => {
-          map.invalidateSize();
-        }, 100);
-      } catch (err) {
-        console.error('Map init error:', err);
-        setError('Failed to initialize map. Please refresh the page.');
+      if (typeof window !== 'undefined' && (window as any).L?.heatLayer) {
+        (L as any).heatLayer = (window as any).L.heatLayer;
+        (L as any).HeatLayer = (window as any).L.HeatLayer;
       }
+
+      if (typeof window !== 'undefined') {
+        (window as any).L = L;
+      }
+
+      try {
+        await loadHeatmapScript();
+        setHeatPluginReady(true);
+      } catch (err) {
+        console.error('Failed to load leaflet.heat:', err);
+      }
+
+      leafletRef.current = L;
+
+      const map = L.map(mapContainerRef.current, {
+        center: DEFAULT_CENTER,
+        zoom: 7,
+        scrollWheelZoom: true,
+      });
+
+      mapRef.current = map;
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+
+      refreshMarkers();
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
     };
 
     initMap();
@@ -172,13 +235,17 @@ export default function MapViewPage() {
     return () => {
       cancelled = true;
       if (mapRef.current) {
+        if (heatmapLayerRef.current) {
+          mapRef.current.removeLayer(heatmapLayerRef.current);
+          heatmapLayerRef.current = null;
+        }
         mapRef.current.remove();
         mapRef.current = null;
         leafletRef.current = null;
         markersRef.current = [];
       }
     };
-  }, [refreshMarkers]);
+  }, [loading, isAuthenticated]);
 
   const handleLogout = async () => {
     await logout();
@@ -249,24 +316,30 @@ export default function MapViewPage() {
                     Click a report card to focus the map on that location.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {(Object.keys(severityInfo) as SeverityLevel[]).map((severity) => (
-                    <div
-                      key={severity}
-                      className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700"
-                    >
-                      <span className={`map-pin-small ${severityInfo[severity].className}`} />
-                      {severityInfo[severity].label}
-                    </div>
-                  ))}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    {(Object.keys(severityInfo) as SeverityLevel[]).map((severity) => (
+                      <div
+                        key={severity}
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700"
+                      >
+                        <span className={`map-pin-small ${severityInfo[severity].className}`} />
+                        {severityInfo[severity].label}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
+                    <Switch
+                      id="heatmap-toggle"
+                      checked={showHeatmap}
+                      onCheckedChange={setShowHeatmap}
+                    />
+                    <Label htmlFor="heatmap-toggle">Heatmap</Label>
+                  </div>
                 </div>
               </div>
 
-              <div 
-                ref={mapContainerRef} 
-                className="map-container h-[500px] w-full"
-                style={{ height: '500px', width: '100%', position: 'relative', background: '#e2e8f0' }}
-              />
+              <div ref={mapContainerRef} className="map-container h-[500px] w-full" />
 
               <div className="mt-2 text-xs text-slate-500">
                 Total reports: {reports.length} | With location: {reportsWithLocation.length}
@@ -312,7 +385,7 @@ export default function MapViewPage() {
                 {reportsWithLocation.length > 0 ? (
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {reportsWithLocation.map((report) => {
-                      const severity = severityInfo[report.severity];
+                      const severity = severityInfo[report.severity] || severityInfo['LOW'];
 
                       return (
                         <div
